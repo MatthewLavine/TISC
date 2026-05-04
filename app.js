@@ -225,59 +225,61 @@
 
     // --- RAM Viewer ---
     /**
-     * Render the RAM hex grid. Shows rows that contain non-zero
-     * values, organized as a 16-column hex dump (like a hex editor).
+     * Render the RAM viewer as a simple vertical list.
+     * Shows each non-zero address with its value — much clearer
+     * than a hex grid for understanding how memory works.
      */
     function renderRamViewer(changedAddresses, readAddresses) {
-        // Find which rows (groups of 16) have data
-        const activeRows = new Set();
+        // Collect all addresses worth showing
+        const entries = [];
         for (let i = 0; i < RAM_SIZE; i++) {
             if (cpu.ram[i] !== 0) {
-                activeRows.add(Math.floor(i / 16));
+                entries.push(i);
             }
         }
-        // Also include rows with recent changes/reads
-        (changedAddresses || []).forEach(a => activeRows.add(Math.floor(a / 16)));
-        (readAddresses || []).forEach(a => activeRows.add(Math.floor(a / 16)));
 
-        if (activeRows.size === 0) {
+        // Also include recently changed/read addresses even if zero
+        (changedAddresses || []).forEach(a => {
+            if (!entries.includes(a)) entries.push(a);
+        });
+        (readAddresses || []).forEach(a => {
+            if (!entries.includes(a)) entries.push(a);
+        });
+        entries.sort((a, b) => a - b);
+
+        if (entries.length === 0) {
             dom.ramViewer.innerHTML = '<div class="ram-empty">RAM is empty. Use STORE to write data.</div>';
             return;
         }
 
-        const sortedRows = [...activeRows].sort((a, b) => a - b);
+        let html = '<table class="ram-table">';
+        html += '<thead><tr><th>Address</th><th>Value (dec)</th><th>Value (hex)</th><th></th></tr></thead>';
+        html += '<tbody>';
 
-        let html = '<div class="ram-grid">';
+        for (const addr of entries) {
+            const val = cpu.ram[addr];
+            const isChanged = (changedAddresses || []).includes(addr);
+            const isRead = (readAddresses || []).includes(addr);
 
-        // Header row
-        html += '<div class="ram-header"></div>';
-        for (let col = 0; col < 16; col++) {
-            html += `<div class="ram-header">x${col.toString(16).toUpperCase()}</div>`;
-        }
-
-        // Data rows
-        for (const rowIdx of sortedRows) {
-            const baseAddr = rowIdx * 16;
-            html += `<div class="ram-row-label">${formatHex(baseAddr, 2)}</div>`;
-
-            for (let col = 0; col < 16; col++) {
-                const addr = baseAddr + col;
-                const val = cpu.ram[addr];
-                const isChanged = (changedAddresses || []).includes(addr);
-                const isRead = (readAddresses || []).includes(addr);
-                const hasValue = val !== 0;
-
-                let cellClass = 'ram-cell';
-                if (isChanged) cellClass += ' just-changed';
-                else if (isRead) cellClass += ' just-read';
-                else if (hasValue) cellClass += ' has-value';
-
-                const displayVal = val.toString(16).toUpperCase().padStart(2, '0');
-                html += `<div class="${cellClass}" title="0x${formatHex(addr, 2).slice(2)}: ${val}">${displayVal}</div>`;
+            let rowClass = 'ram-row';
+            let badge = '';
+            if (isChanged) {
+                rowClass += ' ram-row-written';
+                badge = '<span class="ram-badge ram-badge-write">WRITE</span>';
+            } else if (isRead) {
+                rowClass += ' ram-row-read';
+                badge = '<span class="ram-badge ram-badge-read">READ</span>';
             }
+
+            html += `<tr class="${rowClass}">`;
+            html += `<td class="ram-addr">${formatHex(addr, 2)}</td>`;
+            html += `<td class="ram-val-dec">${val}</td>`;
+            html += `<td class="ram-val-hex">${val.toString(16).toUpperCase().padStart(2, '0')}</td>`;
+            html += `<td class="ram-action">${badge}</td>`;
+            html += '</tr>';
         }
 
-        html += '</div>';
+        html += '</tbody></table>';
         dom.ramViewer.innerHTML = html;
     }
 
