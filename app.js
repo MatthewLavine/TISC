@@ -202,6 +202,7 @@
         }
 
         let html = '<table class="ram-table">';
+        html += '<colgroup><col class="col-ram-addr"><col class="col-ram-dec"><col class="col-ram-hex"><col class="col-ram-action"></colgroup>';
         html += '<thead><tr><th>Address</th><th>Dec</th><th>Hex</th><th></th></tr></thead>';
         html += '<tbody>';
 

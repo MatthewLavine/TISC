@@ -642,7 +642,13 @@ body::before {
 .ram-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
+
+.ram-table colgroup .col-ram-addr { width: 70px; }
+.ram-table colgroup .col-ram-dec { width: 50px; }
+.ram-table colgroup .col-ram-hex { width: 45px; }
+.ram-table colgroup .col-ram-action { width: 50px; }
 
 .ram-table thead th {
     text-align: left;
