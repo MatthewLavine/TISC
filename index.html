@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TISC — Toy Instruction Set Computer. An interactive CPU simulator that teaches how processors work from first principles.">
+    <title>TISC — Toy Instruction Set Computer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header id="main-header">
+        <div class="header-left">
+            <h1 id="site-title">
+                <span class="title-icon">⚡</span>
+                TISC
+            </h1>
+            <span class="subtitle">Toy Instruction Set Computer</span>
+        </div>
+        <div class="header-right">
+            <span class="iteration-badge">Iteration 1: Fetch–Decode–Execute</span>
+        </div>
+    </header>
+
+    <main id="app">
+        <!-- Concept Explainer -->
+        <section id="concept-panel" class="panel">
+            <div class="panel-header">
+                <h2>💡 The Big Idea</h2>
+                <button id="toggle-concept-btn" class="icon-btn" aria-label="Toggle concept panel">▼</button>
+            </div>
+            <div id="concept-content" class="panel-body">
+                <p>A CPU does <strong>one thing</strong> over and over, billions of times per second:</p>
+                <div class="cycle-diagram">
+                    <div class="cycle-step" id="cycle-fetch">
+                        <div class="cycle-icon">📥</div>
+                        <div class="cycle-label">Fetch</div>
+                        <div class="cycle-desc">Read the next instruction from memory</div>
+                    </div>
+                    <div class="cycle-arrow">→</div>
+                    <div class="cycle-step" id="cycle-decode">
+                        <div class="cycle-icon">🔍</div>
+                        <div class="cycle-label">Decode</div>
+                        <div class="cycle-desc">Figure out what the instruction means</div>
+                    </div>
+                    <div class="cycle-arrow">→</div>
+                    <div class="cycle-step" id="cycle-execute">
+                        <div class="cycle-icon">⚙️</div>
+                        <div class="cycle-label">Execute</div>
+                        <div class="cycle-desc">Perform the operation</div>
+                    </div>
+                    <div class="cycle-arrow cycle-return">↩</div>
+                </div>
+                <p class="concept-note">This is the <strong>fetch–decode–execute cycle</strong>. Every program you've ever run — from video games to web browsers — is just this loop running on different sequences of instructions.</p>
+            </div>
+        </section>
+
+        <div class="sim-layout">
+            <!-- Left Column: CPU State -->
+            <div class="sim-column">
+                <!-- Registers -->
+                <section id="registers-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>📋 Registers</h2>
+                        <span class="panel-hint">Tiny, super-fast storage inside the CPU</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="register-grid">
+                            <div class="register" id="reg-pc">
+                                <div class="reg-label">PC</div>
+                                <div class="reg-value" id="reg-pc-value">0</div>
+                                <div class="reg-desc">Program Counter</div>
+                            </div>
+                            <div class="register" id="reg-r0">
+                                <div class="reg-label">R0</div>
+                                <div class="reg-value" id="reg-r0-value">0</div>
+                                <div class="reg-desc">General Purpose</div>
+                            </div>
+                            <div class="register" id="reg-r1">
+                                <div class="reg-label">R1</div>
+                                <div class="reg-value" id="reg-r1-value">0</div>
+                                <div class="reg-desc">General Purpose</div>
+                            </div>
+                            <div class="register" id="reg-r2">
+                                <div class="reg-label">R2</div>
+                                <div class="reg-value" id="reg-r2-value">0</div>
+                                <div class="reg-desc">General Purpose</div>
+                            </div>
+                            <div class="register" id="reg-r3">
+                                <div class="reg-label">R3</div>
+                                <div class="reg-value" id="reg-r3-value">0</div>
+                                <div class="reg-desc">General Purpose</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Controls -->
+                <section id="controls-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>🎮 Controls</h2>
+                    </div>
+                    <div class="panel-body">
+                        <div class="controls-row">
+                            <button id="step-btn" class="btn btn-primary" title="Execute one instruction">
+                                <span class="btn-icon">⏭</span> Step
+                            </button>
+                            <button id="run-btn" class="btn btn-success" title="Run continuously">
+                                <span class="btn-icon">▶</span> Run
+                            </button>
+                            <button id="reset-btn" class="btn btn-danger" title="Reset CPU to initial state">
+                                <span class="btn-icon">🔄</span> Reset
+                            </button>
+                        </div>
+                        <div class="speed-control">
+                            <label for="speed-slider">Speed:</label>
+                            <input type="range" id="speed-slider" min="1" max="10" value="3">
+                            <span id="speed-label">3 Hz</span>
+                        </div>
+                        <div class="cpu-status">
+                            <span class="status-dot" id="status-dot"></span>
+                            <span id="status-label">Ready</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Program Selector -->
+                <section id="program-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>📀 Programs</h2>
+                    </div>
+                    <div class="panel-body">
+                        <select id="program-select" class="program-select">
+                            <option value="add-two-numbers">Add Two Numbers</option>
+                            <option value="sum-three">Sum Three Values</option>
+                            <option value="register-shuffle">Register Shuffle</option>
+                        </select>
+                        <p id="program-description" class="program-desc"></p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Center Column: Program Memory -->
+            <div class="sim-column sim-column-wide">
+                <section id="memory-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>🧠 Program Memory</h2>
+                        <span class="panel-hint">Instructions stored in memory, one per address</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="memory-table-wrapper">
+                            <table id="memory-table" class="memory-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-addr">Addr</th>
+                                        <th class="col-hex">Hex</th>
+                                        <th class="col-asm">Assembly</th>
+                                        <th class="col-explain">Meaning</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="memory-tbody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Execution Log -->
+            <div class="sim-column">
+                <section id="log-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>📜 Execution Log</h2>
+                        <button id="clear-log-btn" class="icon-btn" title="Clear log">✕</button>
+                    </div>
+                    <div class="panel-body">
+                        <div id="log-entries" class="log-entries">
+                            <div class="log-entry log-info">
+                                <span class="log-badge">INFO</span>
+                                CPU initialized. Press <strong>Step</strong> or <strong>Run</strong> to begin.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <footer id="main-footer">
+        <p>TISC — Learning how CPUs work, one instruction at a time.</p>
+    </footer>
+
+    <script src="cpu.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
