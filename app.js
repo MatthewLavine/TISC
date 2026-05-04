@@ -1,22 +1,20 @@
 /* ============================================================
-   TISC — App Controller (Iteration 1)
+   TISC — App Controller (Iteration 2)
    
-   This file connects the CPU engine (cpu.js) to the UI.
-   Think of it as the "front panel" of our computer — the
-   buttons, lights, and displays that let you see and control
-   what the CPU is doing.
+   Connects the CPU engine to the UI. Now includes:
+   - Flags register display (Z, N, C LED indicators)
+   - ALU diagram that shows inputs → operation → result
+   - Extended hex encoding for new ALU instructions
    ============================================================ */
 
 (function () {
     'use strict';
 
-    // --- State ---
     const cpu = new CPU();
     let isRunning = false;
     let runTimer = null;
     let currentProgramId = 'add-two-numbers';
 
-    // --- DOM References ---
     const dom = {
         // Registers
         regPC: document.getElementById('reg-pc-value'),
@@ -24,13 +22,26 @@
         regR1: document.getElementById('reg-r1-value'),
         regR2: document.getElementById('reg-r2-value'),
         regR3: document.getElementById('reg-r3-value'),
-
-        // Register containers (for animation)
         regPCContainer: document.getElementById('reg-pc'),
         regR0Container: document.getElementById('reg-r0'),
         regR1Container: document.getElementById('reg-r1'),
         regR2Container: document.getElementById('reg-r2'),
         regR3Container: document.getElementById('reg-r3'),
+
+        // Flags
+        flagZ: document.getElementById('flag-z'),
+        flagN: document.getElementById('flag-n'),
+        flagC: document.getElementById('flag-c'),
+
+        // ALU diagram
+        aluValA: document.getElementById('alu-val-a'),
+        aluValB: document.getElementById('alu-val-b'),
+        aluValResult: document.getElementById('alu-val-result'),
+        aluOp: document.getElementById('alu-op'),
+        aluBody: document.getElementById('alu-body'),
+        aluFlagZ: document.getElementById('alu-flag-z'),
+        aluFlagN: document.getElementById('alu-flag-n'),
+        aluFlagC: document.getElementById('alu-flag-c'),
 
         // Controls
         stepBtn: document.getElementById('step-btn'),
@@ -52,17 +63,11 @@
         logEntries: document.getElementById('log-entries'),
         clearLogBtn: document.getElementById('clear-log-btn'),
 
-        // Concept diagram
-        cycleFetch: document.getElementById('cycle-fetch'),
-        cycleDecode: document.getElementById('cycle-decode'),
-        cycleExecute: document.getElementById('cycle-execute'),
-
         // Concept toggle
         toggleConceptBtn: document.getElementById('toggle-concept-btn'),
         conceptContent: document.getElementById('concept-content'),
     };
 
-    // Map register names to DOM elements
     const regValueElements = {
         [Register.PC]: dom.regPC,
         [Register.R0]: dom.regR0,
@@ -79,7 +84,17 @@
         [Register.R3]: dom.regR3Container,
     };
 
-    // --- Initialization ---
+    // --- ALU operation symbols for display ---
+    const ALU_OP_SYMBOLS = {
+        ADD: '+', SUB: '−', AND: '&', OR: '|',
+        XOR: '^', NOT: '~', SHL: '<<', SHR: '>>',
+    };
+
+    // --- Is this opcode an ALU operation? ---
+    function isAluOp(opcode) {
+        return opcode in ALU_OP_SYMBOLS;
+    }
+
     function init() {
         loadProgram(currentProgramId);
         bindEvents();
@@ -95,7 +110,6 @@
         dom.clearLogBtn.addEventListener('click', onClearLog);
         dom.toggleConceptBtn.addEventListener('click', onToggleConcept);
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
             switch (e.key) {
@@ -116,7 +130,6 @@
         });
     }
 
-    // --- Program Loading ---
     function loadProgram(programId) {
         const program = PROGRAMS[programId];
         if (!program) return;
@@ -127,57 +140,48 @@
         renderMemoryTable();
         clearLog();
         addLogEntry('info', `Loaded program: <strong>${program.name}</strong>`);
-        addLogEntry('info', 'CPU initialized. Press <strong>Step</strong> or <strong>Run</strong> to begin.');
+        addLogEntry('info', 'Press <strong>Step</strong> or <strong>Run</strong> to begin.');
+        resetAluDiagram();
         updateUI();
     }
 
-    // --- Memory Table Rendering ---
+    // --- Memory Table ---
     function renderMemoryTable() {
         dom.memoryTbody.innerHTML = '';
-
         cpu.program.forEach((instruction, addr) => {
             const decoded = cpu.decode(instruction);
             const row = document.createElement('tr');
             row.dataset.addr = addr;
 
-            // Address cell
             const addrCell = document.createElement('td');
             addrCell.innerHTML = `<span class="cell-addr">${formatHex(addr, 2)}</span>`;
             row.appendChild(addrCell);
 
-            // Hex representation (simplified)
             const hexCell = document.createElement('td');
             hexCell.innerHTML = `<span class="cell-hex">${encodeInstructionHex(instruction)}</span>`;
             row.appendChild(hexCell);
 
-            // Assembly representation
             const asmCell = document.createElement('td');
             asmCell.innerHTML = `<span class="cell-asm">${decoded.assembly}</span>`;
             row.appendChild(asmCell);
 
-            // Human-readable explanation
             const explainCell = document.createElement('td');
             explainCell.innerHTML = `<span class="cell-explain">${decoded.description}</span>`;
             row.appendChild(explainCell);
 
             dom.memoryTbody.appendChild(row);
         });
-
         highlightCurrentInstruction();
     }
 
-    /**
-     * Encode an instruction as a hex string.
-     * 
-     * This is a simplified version of what real CPUs do. In a real
-     * machine, each instruction is encoded as one or more bytes with
-     * specific bit fields for the opcode, register numbers, and
-     * immediate values.
-     */
     function encodeInstructionHex(instr) {
-        const opcodeMap = { 'LOAD_IMM': 0x01, 'ADD': 0x02, 'HALT': 0xFF };
+        const opcodeMap = {
+            'LOAD_IMM': 0x01, 'ADD': 0x02, 'SUB': 0x03,
+            'AND': 0x04, 'OR': 0x05, 'XOR': 0x06,
+            'NOT': 0x07, 'SHL': 0x08, 'SHR': 0x09,
+            'HALT': 0xFF,
+        };
         const regMap = { 'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3 };
-
         const opByte = opcodeMap[instr.opcode] || 0x00;
 
         switch (instr.opcode) {
@@ -186,10 +190,14 @@
                 const imm = instr.operands[1] & 0xFF;
                 return `${formatHex(opByte)} ${formatHex(reg)} ${formatHex(imm)}`;
             }
-            case 'ADD': {
+            case 'ADD': case 'SUB': case 'AND': case 'OR': case 'XOR': {
                 const dest = regMap[instr.operands[0]] || 0;
                 const src = regMap[instr.operands[1]] || 0;
                 return `${formatHex(opByte)} ${formatHex(dest)} ${formatHex(src)}`;
+            }
+            case 'NOT': case 'SHL': case 'SHR': {
+                const dest = regMap[instr.operands[0]] || 0;
+                return `${formatHex(opByte)} ${formatHex(dest)}`;
             }
             case 'HALT':
                 return `${formatHex(opByte)}`;
@@ -208,7 +216,6 @@
 
         rows.forEach((row, idx) => {
             row.classList.remove('current-instruction');
-            // Remove existing PC marker
             const existingMarker = row.querySelector('.pc-marker');
             if (existingMarker) existingMarker.remove();
 
@@ -236,6 +243,9 @@
             el.textContent = cpu.getRegister(reg);
         }
 
+        // Update flags
+        updateFlagsUI();
+
         // Update status
         if (cpu.halted) {
             dom.statusDot.className = 'status-dot halted';
@@ -254,7 +264,6 @@
             dom.runBtn.disabled = false;
         }
 
-        // Update run button text
         dom.runBtn.innerHTML = isRunning
             ? '<span class="btn-icon">⏸</span> Pause'
             : '<span class="btn-icon">▶</span> Run';
@@ -262,15 +271,71 @@
         highlightCurrentInstruction();
     }
 
+    function updateFlagsUI() {
+        dom.flagZ.classList.toggle('active', cpu.flags.Z);
+        dom.flagN.classList.toggle('active', cpu.flags.N);
+        dom.flagC.classList.toggle('active', cpu.flags.C);
+    }
+
     /**
-     * Flash the registers that changed to draw attention to them.
+     * Update the ALU diagram to show what the ALU just computed.
      */
+    function updateAluDiagram(decoded, stepResult) {
+        if (!isAluOp(decoded.opcode)) {
+            return; // Non-ALU ops don't touch the ALU diagram
+        }
+
+        const opSymbol = ALU_OP_SYMBOLS[decoded.opcode] || '?';
+        dom.aluOp.textContent = opSymbol;
+        dom.aluBody.classList.add('active');
+
+        // Get the operand values from BEFORE execution
+        // (stepResult.result.details has the "A op B = result" string)
+        if (decoded.destReg && decoded.srcReg) {
+            // Two-operand: show both inputs
+            const parts = stepResult.result.details.match(/(\d+)\s+\S+\s+(\d+)\s*=\s*(\d+)/);
+            if (parts) {
+                dom.aluValA.textContent = parts[1];
+                dom.aluValB.textContent = parts[2];
+                dom.aluValResult.textContent = parts[3];
+            }
+        } else if (decoded.destReg) {
+            // Single-operand (NOT, SHL, SHR)
+            const parts = stepResult.result.details.match(/(\S+)\s+(\d+)\s*=\s*(\d+)/);
+            if (parts) {
+                dom.aluValA.textContent = parts[2];
+                dom.aluValB.textContent = '—';
+                dom.aluValResult.textContent = parts[3];
+            }
+        }
+
+        // Update mini-flag indicators in ALU diagram
+        dom.aluFlagZ.classList.toggle('active', cpu.flags.Z);
+        dom.aluFlagN.classList.toggle('active', cpu.flags.N);
+        dom.aluFlagC.classList.toggle('active', cpu.flags.C);
+
+        // Clear active state after a delay
+        setTimeout(() => {
+            dom.aluBody.classList.remove('active');
+        }, 800);
+    }
+
+    function resetAluDiagram() {
+        if (dom.aluValA) dom.aluValA.textContent = '—';
+        if (dom.aluValB) dom.aluValB.textContent = '—';
+        if (dom.aluValResult) dom.aluValResult.textContent = '—';
+        if (dom.aluOp) dom.aluOp.textContent = 'ALU';
+        if (dom.aluBody) dom.aluBody.classList.remove('active');
+        if (dom.aluFlagZ) dom.aluFlagZ.classList.remove('active');
+        if (dom.aluFlagN) dom.aluFlagN.classList.remove('active');
+        if (dom.aluFlagC) dom.aluFlagC.classList.remove('active');
+    }
+
     function flashRegisters(changedRegs) {
         for (const reg of changedRegs) {
             const container = regContainerElements[reg];
             if (container) {
                 container.classList.remove('changed');
-                // Trigger reflow to restart animation
                 void container.offsetWidth;
                 container.classList.add('changed');
                 setTimeout(() => container.classList.remove('changed'), 600);
@@ -278,30 +343,12 @@
         }
     }
 
-    /**
-     * Animate the fetch-decode-execute diagram to show which
-     * phase is active.
-     */
-    function animateCycleDiagram(phase) {
-        dom.cycleFetch.classList.remove('active');
-        dom.cycleDecode.classList.remove('active');
-        dom.cycleExecute.classList.remove('active');
-
-        switch (phase) {
-            case 'fetch': dom.cycleFetch.classList.add('active'); break;
-            case 'decode': dom.cycleDecode.classList.add('active'); break;
-            case 'execute': dom.cycleExecute.classList.add('active'); break;
-        }
-    }
-
     // --- Logging ---
     function addLogEntry(type, html) {
         const entry = document.createElement('div');
         entry.className = `log-entry log-${type}`;
-
         const badgeText = type.toUpperCase();
         entry.innerHTML = `<span class="log-badge">${badgeText}</span> ${html}`;
-
         dom.logEntries.appendChild(entry);
         dom.logEntries.scrollTop = dom.logEntries.scrollHeight;
     }
@@ -310,18 +357,24 @@
         dom.logEntries.innerHTML = '';
     }
 
-    // --- Event Handlers ---
-
     /**
-     * Execute one complete CPU cycle with animated phases.
+     * Build a flags summary string for the log.
      */
+    function flagsSummary() {
+        const parts = [];
+        if (cpu.flags.Z) parts.push('Z=1');
+        if (cpu.flags.N) parts.push('N=1');
+        if (cpu.flags.C) parts.push('C=1');
+        return parts.length > 0
+            ? ` → flags: <code>${parts.join(', ')}</code>`
+            : ' → flags: <code>all clear</code>';
+    }
+
+    // --- Event Handlers ---
     function onStep() {
         if (cpu.halted) return;
 
         const pc = cpu.getRegister(Register.PC);
-
-        // Phase 1: Fetch
-        animateCycleDiagram('fetch');
         const instruction = cpu.program[pc];
         if (!instruction) {
             addLogEntry('halt', 'PC out of bounds — no instruction to fetch!');
@@ -329,17 +382,14 @@
             updateUI();
             return;
         }
-        const decoded = cpu.decode(instruction);
-        addLogEntry('fetch', `<strong>Fetch</strong> from address <code>${formatHex(pc, 2)}</code>: got instruction <code>${decoded.assembly}</code>`);
 
-        // Phase 2: Decode (small delay for visual effect)
+        const decoded = cpu.decode(instruction);
+        addLogEntry('fetch', `<strong>Fetch</strong> from <code>${formatHex(pc, 2)}</code>: <code>${decoded.assembly}</code>`);
+
         setTimeout(() => {
-            animateCycleDiagram('decode');
             addLogEntry('decode', `<strong>Decode</strong>: ${decoded.description}`);
 
-            // Phase 3: Execute
             setTimeout(() => {
-                animateCycleDiagram('execute');
                 const stepResult = cpu.step();
 
                 if (stepResult.status === 'halted' && stepResult.result) {
@@ -347,25 +397,24 @@
                     addLogEntry('halt', `CPU halted after <strong>${cpu.cycleCount}</strong> cycles.`);
                     flashRegisters(stepResult.result.changedRegisters || []);
                 } else if (stepResult.status === 'ok') {
-                    addLogEntry('execute', `<strong>Execute</strong>: ${stepResult.result.details}`);
+                    let logMsg = `<strong>Execute</strong>: ${stepResult.result.details}`;
+                    if (stepResult.result.flagsChanged) {
+                        logMsg += flagsSummary();
+                    }
+                    addLogEntry('execute', logMsg);
                     flashRegisters(stepResult.result.changedRegisters);
-                } else if (stepResult.status === 'halted') {
-                    addLogEntry('halt', stepResult.message);
+                    updateAluDiagram(decoded, stepResult);
                 } else {
                     addLogEntry('halt', stepResult.message);
                 }
 
                 updateUI();
-
-                // Clear cycle highlight after a moment
-                setTimeout(() => animateCycleDiagram(null), 300);
             }, isRunning ? 0 : 120);
         }, isRunning ? 0 : 120);
     }
 
     function onToggleRun() {
         if (cpu.halted) return;
-
         if (isRunning) {
             stopRunning();
         } else {
@@ -378,25 +427,16 @@
         isRunning = true;
         const speed = parseInt(dom.speedSlider.value);
         const interval = Math.max(100, 1000 / speed);
-
         runTimer = setInterval(() => {
-            if (cpu.halted) {
-                stopRunning();
-                updateUI();
-                return;
-            }
+            if (cpu.halted) { stopRunning(); updateUI(); return; }
             onStep();
         }, interval);
-
         updateUI();
     }
 
     function stopRunning() {
         isRunning = false;
-        if (runTimer) {
-            clearInterval(runTimer);
-            runTimer = null;
-        }
+        if (runTimer) { clearInterval(runTimer); runTimer = null; }
         updateUI();
     }
 
@@ -408,12 +448,7 @@
     function onSpeedChange() {
         const speed = parseInt(dom.speedSlider.value);
         dom.speedLabel.textContent = `${speed} Hz`;
-
-        // If currently running, restart with new speed
-        if (isRunning) {
-            stopRunning();
-            startRunning();
-        }
+        if (isRunning) { stopRunning(); startRunning(); }
     }
 
     function onProgramChange() {
@@ -430,7 +465,6 @@
     function onToggleConcept() {
         const content = dom.conceptContent;
         const btn = dom.toggleConceptBtn;
-
         if (content.style.display === 'none') {
             content.style.display = '';
             btn.textContent = '▼';
@@ -440,6 +474,5 @@
         }
     }
 
-    // --- Kick it off ---
     init();
 })();

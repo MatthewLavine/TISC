@@ -393,6 +393,208 @@ body::before {
     letter-spacing: 0.5px;
 }
 
+/* --- Flags Panel --- */
+.flags-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--space-sm);
+}
+
+.flag {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: var(--space-sm) var(--space-xs);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-normal);
+}
+
+.flag-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg-active);
+    border: 2px solid var(--border-color);
+    transition: all var(--transition-normal);
+}
+
+.flag.active .flag-indicator {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 10px var(--accent-green), 0 0 20px rgba(52, 211, 153, 0.3);
+}
+
+#flag-z.active .flag-indicator {
+    background: var(--accent-green);
+}
+
+#flag-n.active .flag-indicator {
+    background: var(--accent-amber);
+    border-color: var(--accent-amber);
+    box-shadow: 0 0 10px var(--accent-amber), 0 0 20px rgba(251, 191, 36, 0.3);
+}
+
+#flag-c.active .flag-indicator {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+    box-shadow: 0 0 10px var(--accent-red), 0 0 20px rgba(248, 113, 113, 0.3);
+}
+
+.flag.active {
+    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(52, 211, 153, 0.05);
+}
+
+#flag-n.active {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: rgba(251, 191, 36, 0.05);
+}
+
+#flag-c.active {
+    border-color: rgba(248, 113, 113, 0.3);
+    background: rgba(248, 113, 113, 0.05);
+}
+
+.flag-label {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
+}
+
+.flag.active .flag-label {
+    color: var(--text-bright);
+}
+
+.flag-name {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.flag-desc {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* --- ALU Diagram --- */
+.alu-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.alu-inputs {
+    display: flex;
+    gap: var(--space-xl);
+}
+
+.alu-input, .alu-output {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.alu-io-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.alu-io-value {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    min-width: 40px;
+    text-align: center;
+    padding: 2px 8px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.alu-body {
+    position: relative;
+    width: 120px;
+    height: 50px;
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(167, 139, 250, 0.1));
+    border: 2px solid var(--border-color);
+    clip-path: polygon(10% 0%, 90% 0%, 100% 50%, 90% 100%, 10% 100%, 0% 50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-normal);
+}
+
+.alu-body.active {
+    border-color: var(--accent-cyan);
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(167, 139, 250, 0.2));
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+}
+
+.alu-op {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--accent-cyan);
+    letter-spacing: 1px;
+}
+
+.alu-outputs {
+    display: flex;
+    gap: var(--space-xl);
+    align-items: center;
+}
+
+.alu-flags-out {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.alu-flag-mini {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    transition: all var(--transition-normal);
+}
+
+.alu-flag-mini.active {
+    color: var(--text-bright);
+    border-color: var(--accent-green);
+    background: var(--accent-green-dim);
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.3);
+}
+
+/* Optgroup styling */
+.program-select optgroup {
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-panel);
+}
+
 /* --- Controls --- */
 .controls-row {
     display: flex;

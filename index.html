@@ -20,7 +20,7 @@
             <span class="subtitle">Toy Instruction Set Computer</span>
         </div>
         <div class="header-right">
-            <span class="iteration-badge">Iteration 1: Fetch–Decode–Execute</span>
+            <span class="iteration-badge">Iteration 2: ALU & Flags</span>
         </div>
     </header>
 
@@ -32,28 +32,34 @@
                 <button id="toggle-concept-btn" class="icon-btn" aria-label="Toggle concept panel">▼</button>
             </div>
             <div id="concept-content" class="panel-body">
-                <p>A CPU does <strong>one thing</strong> over and over, billions of times per second:</p>
-                <div class="cycle-diagram">
-                    <div class="cycle-step" id="cycle-fetch">
-                        <div class="cycle-icon">📥</div>
-                        <div class="cycle-label">Fetch</div>
-                        <div class="cycle-desc">Read the next instruction from memory</div>
+                <p>The <strong>ALU (Arithmetic Logic Unit)</strong> is the CPU's calculator. Every math and logic operation flows through it:</p>
+                <div class="alu-diagram">
+                    <div class="alu-inputs">
+                        <div class="alu-input" id="alu-input-a">
+                            <span class="alu-io-label">Input A</span>
+                            <span class="alu-io-value" id="alu-val-a">—</span>
+                        </div>
+                        <div class="alu-input" id="alu-input-b">
+                            <span class="alu-io-label">Input B</span>
+                            <span class="alu-io-value" id="alu-val-b">—</span>
+                        </div>
                     </div>
-                    <div class="cycle-arrow">→</div>
-                    <div class="cycle-step" id="cycle-decode">
-                        <div class="cycle-icon">🔍</div>
-                        <div class="cycle-label">Decode</div>
-                        <div class="cycle-desc">Figure out what the instruction means</div>
+                    <div class="alu-body" id="alu-body">
+                        <div class="alu-op" id="alu-op">ALU</div>
                     </div>
-                    <div class="cycle-arrow">→</div>
-                    <div class="cycle-step" id="cycle-execute">
-                        <div class="cycle-icon">⚙️</div>
-                        <div class="cycle-label">Execute</div>
-                        <div class="cycle-desc">Perform the operation</div>
+                    <div class="alu-outputs">
+                        <div class="alu-output">
+                            <span class="alu-io-label">Result</span>
+                            <span class="alu-io-value" id="alu-val-result">—</span>
+                        </div>
+                        <div class="alu-flags-out">
+                            <span class="alu-flag-mini" id="alu-flag-z">Z</span>
+                            <span class="alu-flag-mini" id="alu-flag-n">N</span>
+                            <span class="alu-flag-mini" id="alu-flag-c">C</span>
+                        </div>
                     </div>
-                    <div class="cycle-arrow cycle-return">↩</div>
                 </div>
-                <p class="concept-note">This is the <strong>fetch–decode–execute cycle</strong>. Every program you've ever run — from video games to web browsers — is just this loop running on different sequences of instructions.</p>
+                <p class="concept-note">After every ALU operation, <strong>flags</strong> update automatically: <strong>Z</strong>ero (result = 0), <strong>N</strong>egative (top bit set), <strong>C</strong>arry (overflow). These flags will power decisions and loops in later iterations.</p>
             </div>
         </section>
 
@@ -97,6 +103,36 @@
                     </div>
                 </section>
 
+                <!-- Flags Register -->
+                <section id="flags-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>🚩 Flags</h2>
+                        <span class="panel-hint">Set automatically after ALU operations</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="flags-grid">
+                            <div class="flag" id="flag-z">
+                                <div class="flag-indicator" id="flag-z-dot"></div>
+                                <div class="flag-label">Z</div>
+                                <div class="flag-name">Zero</div>
+                                <div class="flag-desc">Result was 0</div>
+                            </div>
+                            <div class="flag" id="flag-n">
+                                <div class="flag-indicator" id="flag-n-dot"></div>
+                                <div class="flag-label">N</div>
+                                <div class="flag-name">Negative</div>
+                                <div class="flag-desc">Top bit is 1</div>
+                            </div>
+                            <div class="flag" id="flag-c">
+                                <div class="flag-indicator" id="flag-c-dot"></div>
+                                <div class="flag-label">C</div>
+                                <div class="flag-name">Carry</div>
+                                <div class="flag-desc">Overflow occurred</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Controls -->
                 <section id="controls-panel" class="panel">
                     <div class="panel-header">
@@ -133,9 +169,18 @@
                     </div>
                     <div class="panel-body">
                         <select id="program-select" class="program-select">
-                            <option value="add-two-numbers">Add Two Numbers</option>
-                            <option value="sum-three">Sum Three Values</option>
-                            <option value="register-shuffle">Register Shuffle</option>
+                            <optgroup label="Basics">
+                                <option value="add-two-numbers">Add Two Numbers</option>
+                                <option value="sum-three">Sum Three Values</option>
+                                <option value="register-shuffle">Register Shuffle</option>
+                            </optgroup>
+                            <optgroup label="ALU & Flags">
+                                <option value="subtract-to-zero">Subtract to Zero (Z flag)</option>
+                                <option value="bitwise-masking">Bitwise Masking (AND)</option>
+                                <option value="shift-multiply">Shift = Multiply/Divide</option>
+                                <option value="xor-swap">XOR Swap Trick</option>
+                                <option value="not-complement">NOT (Bitwise Complement)</option>
+                            </optgroup>
                         </select>
                         <p id="program-description" class="program-desc"></p>
                     </div>

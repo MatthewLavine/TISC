@@ -11,8 +11,8 @@ Each iteration introduces one major CPU concept:
 | Iteration | Concept | Status |
 |-----------|---------|--------|
 | 1 | **Fetch–Decode–Execute cycle**, registers, basic instructions | ✅ Done |
-| 2 | ALU operations & flags register | 🔜 Next |
-| 3 | RAM (load/store) | ⬜ |
+| 2 | **ALU operations** & flags register (Z, N, C) | ✅ Done |
+| 3 | RAM (load/store) | 🔜 Next |
 | 4 | Branching & loops | ⬜ |
 | 5 | Stack & subroutines | ⬜ |
 | 6 | I/O & interrupts | ⬜ |

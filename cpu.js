@@ -1,60 +1,52 @@
 /* ============================================================
-   TISC — CPU Engine (Iteration 1)
+   TISC — CPU Engine (Iteration 2)
    
-   This file implements the core CPU simulation. Think of it as
-   the "hardware" — the actual logic that makes the CPU tick.
+   This file implements the core CPU simulation.
    
-   KEY CONCEPTS:
+   KEY CONCEPTS (New in Iteration 2):
    
-   1. REGISTERS: Tiny storage slots inside the CPU. They're the
-      fastest memory a computer has — just a few bytes, but the
-      CPU can access them in a single clock cycle.
+   4. THE ALU (Arithmetic Logic Unit):
+      The ALU is the CPU's calculator. It's a physical circuit
+      that takes two inputs and produces one output plus "flags"
+      that describe the result. Every math and logic operation
+      goes through the ALU.
       
-      - PC (Program Counter): Holds the address of the NEXT
-        instruction to execute. After each instruction, it
-        automatically advances to point to the next one.
+   5. FLAGS REGISTER:
+      After every ALU operation, the CPU sets special single-bit
+      "flags" that describe the result:
       
-      - R0–R3: General-purpose registers. Programs use these to
-        hold the values they're working with.
-   
-   2. INSTRUCTIONS: Each instruction is a small packet of data
-      that tells the CPU what to do. We encode each instruction
-      as an object with:
-        - opcode: WHAT operation to perform
-        - operands: WHAT data to use (register names, numbers)
-   
-   3. THE CYCLE: Every CPU in the world runs this loop:
-      a) FETCH: Read the instruction at the address in PC
-      b) DECODE: Parse the instruction to understand it
-      c) EXECUTE: Perform the operation
-      d) Advance PC (unless the instruction already changed it)
-      e) Repeat
+      - Zero (Z): Was the result exactly 0?
+      - Negative (N): Was the result negative? (top bit = 1)
+      - Carry (C): Did the operation overflow past 8 bits?
+      
+      These flags are CRITICAL — in Iteration 4, we'll use them
+      to make decisions (if/else) and loops. Without flags, a CPU
+      can only run straight-line code.
    ============================================================ */
 
-/**
- * Instruction opcodes for our CPU.
- * 
- * In a real CPU, these would be binary numbers (like 0x01, 0x02).
- * We use strings here for readability, but the concept is the same:
- * each opcode is a unique identifier for an operation.
- */
 const Opcode = Object.freeze({
-    /** Load an immediate (literal) value into a register.
-     *  Example: LOAD_IMM R0, 42  →  R0 = 42 */
+    // --- Iteration 1 ---
     LOAD_IMM: 'LOAD_IMM',
-
-    /** Add two registers and store the result in the first.
-     *  Example: ADD R0, R1  →  R0 = R0 + R1 */
     ADD: 'ADD',
-
-    /** Halt the CPU. No more instructions will execute. */
     HALT: 'HALT',
+
+    // --- Iteration 2: ALU operations ---
+    /** Subtract: dest = dest - src */
+    SUB: 'SUB',
+    /** Bitwise AND: dest = dest & src (keeps only bits that are 1 in BOTH) */
+    AND: 'AND',
+    /** Bitwise OR: dest = dest | src (keeps bits that are 1 in EITHER) */
+    OR: 'OR',
+    /** Bitwise XOR: dest = dest ^ src (keeps bits that differ) */
+    XOR: 'XOR',
+    /** Bitwise NOT: dest = ~dest (flips every bit) */
+    NOT: 'NOT',
+    /** Shift Left: dest = dest << 1 (multiply by 2) */
+    SHL: 'SHL',
+    /** Shift Right: dest = dest >> 1 (divide by 2) */
+    SHR: 'SHR',
 });
 
-/**
- * The register names our CPU supports.
- * R0–R3 are general purpose, PC is the program counter.
- */
 const Register = Object.freeze({
     PC: 'PC',
     R0: 'R0',
@@ -63,85 +55,128 @@ const Register = Object.freeze({
     R3: 'R3',
 });
 
-/**
- * Creates a single instruction object.
- * 
- * In a real CPU, instructions are encoded as binary numbers.
- * For example, on x86, `ADD EAX, EBX` might be encoded as
- * the bytes `01 D8`. Our CPU uses JavaScript objects instead
- * of raw bytes — same idea, just more human-readable.
- * 
- * @param {string} opcode - The operation to perform
- * @param {Array} operands - The arguments for the operation
- * @returns {Object} An instruction object
- */
 function makeInstruction(opcode, ...operands) {
     return { opcode, operands };
 }
 
 /**
- * A collection of example programs.
+ * The FLAGS object — describes the result of ALU operations.
  * 
- * Each program is an array of instructions. When the CPU runs,
- * it starts at address 0 (the first instruction) and works its
- * way through the array.
+ * In a real CPU (like x86), these are individual bits inside a
+ * special register called EFLAGS or RFLAGS. ARM calls it CPSR.
+ * We model them as separate booleans for clarity.
  */
+function makeFlags() {
+    return {
+        Z: false,  // Zero flag: result was 0
+        N: false,  // Negative flag: result's high bit was 1
+        C: false,  // Carry flag: unsigned overflow occurred
+    };
+}
+
 const PROGRAMS = {
     'add-two-numbers': {
         name: 'Add Two Numbers',
-        description: 'Loads 7 into R0 and 5 into R1, then adds them. Result (12) ends up in R0. This is the simplest possible program that does useful work.',
+        description: 'Loads 7 into R0 and 5 into R1, then adds them. Result (12) ends up in R0.',
         instructions: [
-            makeInstruction(Opcode.LOAD_IMM, Register.R0, 7),    // R0 = 7
-            makeInstruction(Opcode.LOAD_IMM, Register.R1, 5),    // R1 = 5
-            makeInstruction(Opcode.ADD, Register.R0, Register.R1), // R0 = R0 + R1 = 12
-            makeInstruction(Opcode.HALT),                         // Stop
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 7),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 5),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),
+            makeInstruction(Opcode.HALT),
         ],
     },
 
     'sum-three': {
         name: 'Sum Three Values',
-        description: 'Loads three values into R0, R1, and R2, then sums them step by step into R0. Shows how the CPU accumulates a result over multiple instructions.',
+        description: 'Loads three values and sums them step by step into R0. Watch the flags update after each ALU operation.',
         instructions: [
-            makeInstruction(Opcode.LOAD_IMM, Register.R0, 10),   // R0 = 10
-            makeInstruction(Opcode.LOAD_IMM, Register.R1, 20),   // R1 = 20
-            makeInstruction(Opcode.LOAD_IMM, Register.R2, 30),   // R2 = 30
-            makeInstruction(Opcode.ADD, Register.R0, Register.R1), // R0 = R0 + R1 = 30
-            makeInstruction(Opcode.ADD, Register.R0, Register.R2), // R0 = R0 + R2 = 60
-            makeInstruction(Opcode.HALT),                         // Stop
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 10),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 20),
+            makeInstruction(Opcode.LOAD_IMM, Register.R2, 30),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R2),
+            makeInstruction(Opcode.HALT),
         ],
     },
 
     'register-shuffle': {
         name: 'Register Shuffle',
-        description: 'Loads values into all four registers and performs multiple additions. Watch how data flows between registers as instructions execute.',
+        description: 'Loads values into all four registers and performs multiple additions.',
         instructions: [
-            makeInstruction(Opcode.LOAD_IMM, Register.R0, 1),    // R0 = 1
-            makeInstruction(Opcode.LOAD_IMM, Register.R1, 2),    // R1 = 2
-            makeInstruction(Opcode.LOAD_IMM, Register.R2, 3),    // R2 = 3
-            makeInstruction(Opcode.LOAD_IMM, Register.R3, 4),    // R3 = 4
-            makeInstruction(Opcode.ADD, Register.R0, Register.R1), // R0 = 1+2 = 3
-            makeInstruction(Opcode.ADD, Register.R2, Register.R3), // R2 = 3+4 = 7
-            makeInstruction(Opcode.ADD, Register.R0, Register.R2), // R0 = 3+7 = 10
-            makeInstruction(Opcode.HALT),                         // Stop
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 1),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 2),
+            makeInstruction(Opcode.LOAD_IMM, Register.R2, 3),
+            makeInstruction(Opcode.LOAD_IMM, Register.R3, 4),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),
+            makeInstruction(Opcode.ADD, Register.R2, Register.R3),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R2),
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    // --- New Iteration 2 programs ---
+    'subtract-to-zero': {
+        name: 'Subtract to Zero',
+        description: 'Subtracts equal values to get zero. Watch the Zero flag (Z) turn ON when the result hits 0 — this is how CPUs detect equality!',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 42),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 42),
+            makeInstruction(Opcode.SUB, Register.R0, Register.R1),
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'bitwise-masking': {
+        name: 'Bitwise Masking',
+        description: 'Uses AND to "mask" (extract) specific bits. Loads 0b11011010 (218) and masks with 0b00001111 (15) to extract the lower 4 bits → result is 0b00001010 (10).',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 218),  // 11011010
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 15),   // 00001111
+            makeInstruction(Opcode.AND, Register.R0, Register.R1), // 00001010 = 10
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'shift-multiply': {
+        name: 'Shift = Multiply/Divide',
+        description: 'Shifting left multiplies by 2, shifting right divides by 2. Loads 3, shifts left twice (3→6→12), then right once (12→6). This is how CPUs do fast powers-of-two math!',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 3),
+            makeInstruction(Opcode.SHL, Register.R0),           // 3 << 1 = 6
+            makeInstruction(Opcode.SHL, Register.R0),           // 6 << 1 = 12
+            makeInstruction(Opcode.SHR, Register.R0),           // 12 >> 1 = 6
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'xor-swap': {
+        name: 'XOR Swap Trick',
+        description: 'Swaps two values WITHOUT a temp variable using the XOR swap trick (a classic bit-manipulation hack). R0=15, R1=27 → after 3 XORs → R0=27, R1=15.',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 15),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 27),
+            makeInstruction(Opcode.XOR, Register.R0, Register.R1), // R0 = R0 ^ R1
+            makeInstruction(Opcode.XOR, Register.R1, Register.R0), // R1 = R1 ^ R0 = original R0
+            makeInstruction(Opcode.XOR, Register.R0, Register.R1), // R0 = R0 ^ R1 = original R1
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'not-complement': {
+        name: 'NOT (Bitwise Complement)',
+        description: 'NOT flips every bit. Loads 0 and NOTs it to get 255 (all 1s in 8 bits). Then NOTs 170 (10101010) to get 85 (01010101).',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),
+            makeInstruction(Opcode.NOT, Register.R0),            // ~0 = 255
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 170),  // 10101010
+            makeInstruction(Opcode.NOT, Register.R1),             // 01010101 = 85
+            makeInstruction(Opcode.HALT),
         ],
     },
 };
 
-/**
- * The CPU class — the heart of the simulator.
- * 
- * This models a simplified CPU with:
- * - A set of registers (fast storage inside the CPU)
- * - A program (sequence of instructions in memory)
- * - A fetch-decode-execute cycle
- * 
- * Real CPUs are vastly more complex (pipelining, caches,
- * out-of-order execution, etc.) but the fundamental cycle
- * is exactly this.
- */
 class CPU {
     constructor() {
-        /** @type {Object<string, number>} The register file */
         this.registers = {
             [Register.PC]: 0,
             [Register.R0]: 0,
@@ -150,90 +185,78 @@ class CPU {
             [Register.R3]: 0,
         };
 
-        /** @type {Array<Object>} The program loaded into instruction memory */
+        /**
+         * The FLAGS register — NEW in Iteration 2.
+         * 
+         * After every ALU operation, these flags are automatically
+         * updated to describe the result. They're like indicator
+         * lights on the ALU's output.
+         */
+        this.flags = makeFlags();
+
         this.program = [];
-
-        /** @type {boolean} Whether the CPU has been halted */
         this.halted = false;
-
-        /** @type {number} How many cycles the CPU has executed */
         this.cycleCount = 0;
     }
 
-    /**
-     * Load a program into instruction memory.
-     * 
-     * In a real computer, this is what happens when the OS loads
-     * a program from disk into RAM. The program counter is set to
-     * 0 (the beginning of the program).
-     * 
-     * @param {Array<Object>} instructions - The program to load
-     */
     loadProgram(instructions) {
         this.program = [...instructions];
         this.reset();
     }
 
-    /**
-     * Reset the CPU to its initial state.
-     * Like pressing the reset button on a real CPU.
-     */
     reset() {
         for (const reg of Object.keys(this.registers)) {
             this.registers[reg] = 0;
         }
+        this.flags = makeFlags();
         this.halted = false;
         this.cycleCount = 0;
     }
 
-    /**
-     * Get the value of a register.
-     * @param {string} reg - Register name
-     * @returns {number} The register's current value
-     */
     getRegister(reg) {
         return this.registers[reg];
     }
 
-    /**
-     * Set a register to a new value.
-     * @param {string} reg - Register name
-     * @param {number} value - The value to store
-     */
     setRegister(reg, value) {
         this.registers[reg] = value;
     }
 
     /**
-     * FETCH: Read the next instruction from memory.
+     * Update flags based on an ALU result.
      * 
-     * The CPU looks at the Program Counter (PC) to know WHERE
-     * in memory to read from. The instruction at that address
-     * is "fetched" — pulled out of memory so the CPU can look
-     * at it.
+     * In a real CPU, the ALU hardware does this automatically
+     * as a side effect of every operation. The flags are wired
+     * directly to the ALU's output lines.
      * 
-     * @returns {Object|null} The fetched instruction, or null if PC is out of bounds
+     * We work in 8-bit unsigned (0–255) to keep things simple.
+     * 
+     * @param {number} result - The raw result (may be > 255 or < 0)
+     * @returns {number} The result masked to 8 bits
      */
+    updateFlags(result) {
+        // Carry: did the result exceed 8 bits (unsigned overflow)?
+        this.flags.C = result > 255 || result < 0;
+
+        // Mask to 8 bits (like real 8-bit hardware)
+        const masked = result & 0xFF;
+
+        // Zero: is the 8-bit result exactly 0?
+        this.flags.Z = masked === 0;
+
+        // Negative: is the top bit (bit 7) set?
+        // In two's complement, this means the value is negative
+        // when interpreted as a signed number.
+        this.flags.N = (masked & 0x80) !== 0;
+
+        return masked;
+    }
+
     fetch() {
         const pc = this.registers[Register.PC];
-
-        if (pc < 0 || pc >= this.program.length) {
-            return null;
-        }
-
+        if (pc < 0 || pc >= this.program.length) return null;
         return this.program[pc];
     }
 
-    /**
-     * DECODE: Parse an instruction to understand what it means.
-     * 
-     * In a real CPU, this involves reading the binary opcode
-     * and figuring out which circuit to activate. In our
-     * simulation, we just read the opcode string.
-     * 
-     * @param {Object} instruction - The fetched instruction
-     * @returns {Object} Decoded information about the instruction
-     */
     decode(instruction) {
         const { opcode, operands } = instruction;
 
@@ -256,6 +279,66 @@ class CPU {
                     srcReg: operands[1],
                 };
 
+            case Opcode.SUB:
+                return {
+                    opcode,
+                    description: `Subtract ${operands[1]} from ${operands[0]}, store result in ${operands[0]}`,
+                    assembly: `SUB ${operands[0]}, ${operands[1]}`,
+                    destReg: operands[0],
+                    srcReg: operands[1],
+                };
+
+            case Opcode.AND:
+                return {
+                    opcode,
+                    description: `Bitwise AND of ${operands[0]} and ${operands[1]} — keeps only bits set in both`,
+                    assembly: `AND ${operands[0]}, ${operands[1]}`,
+                    destReg: operands[0],
+                    srcReg: operands[1],
+                };
+
+            case Opcode.OR:
+                return {
+                    opcode,
+                    description: `Bitwise OR of ${operands[0]} and ${operands[1]} — keeps bits set in either`,
+                    assembly: `OR ${operands[0]}, ${operands[1]}`,
+                    destReg: operands[0],
+                    srcReg: operands[1],
+                };
+
+            case Opcode.XOR:
+                return {
+                    opcode,
+                    description: `Bitwise XOR of ${operands[0]} and ${operands[1]} — keeps bits that differ`,
+                    assembly: `XOR ${operands[0]}, ${operands[1]}`,
+                    destReg: operands[0],
+                    srcReg: operands[1],
+                };
+
+            case Opcode.NOT:
+                return {
+                    opcode,
+                    description: `Bitwise NOT of ${operands[0]} — flips every bit`,
+                    assembly: `NOT ${operands[0]}`,
+                    destReg: operands[0],
+                };
+
+            case Opcode.SHL:
+                return {
+                    opcode,
+                    description: `Shift ${operands[0]} left by 1 (multiply by 2)`,
+                    assembly: `SHL ${operands[0]}`,
+                    destReg: operands[0],
+                };
+
+            case Opcode.SHR:
+                return {
+                    opcode,
+                    description: `Shift ${operands[0]} right by 1 (divide by 2)`,
+                    assembly: `SHR ${operands[0]}`,
+                    destReg: operands[0],
+                };
+
             case Opcode.HALT:
                 return {
                     opcode,
@@ -272,27 +355,20 @@ class CPU {
         }
     }
 
-    /**
-     * EXECUTE: Perform the decoded operation.
-     * 
-     * This is where the CPU actually DOES the work — writing
-     * values to registers, performing arithmetic, etc.
-     * 
-     * @param {Object} decoded - The decoded instruction info
-     * @returns {Object} Execution result (what changed)
-     */
     execute(decoded) {
         const result = {
             changedRegisters: [],
+            flagsChanged: false,
             details: '',
         };
 
         switch (decoded.opcode) {
             case Opcode.LOAD_IMM: {
                 const { targetReg, value } = decoded;
-                this.registers[targetReg] = value;
+                this.registers[targetReg] = value & 0xFF;
                 result.changedRegisters.push(targetReg);
                 result.details = `${targetReg} ← ${value}`;
+                // Note: LOAD_IMM does NOT update flags. Only ALU ops do.
                 break;
             }
 
@@ -300,10 +376,104 @@ class CPU {
                 const { destReg, srcReg } = decoded;
                 const a = this.registers[destReg];
                 const b = this.registers[srcReg];
-                const sum = a + b;
-                this.registers[destReg] = sum;
+                const raw = a + b;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
                 result.changedRegisters.push(destReg);
-                result.details = `${destReg} ← ${a} + ${b} = ${sum}`;
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} + ${b} = ${masked}`;
+                break;
+            }
+
+            case Opcode.SUB: {
+                const { destReg, srcReg } = decoded;
+                const a = this.registers[destReg];
+                const b = this.registers[srcReg];
+                const raw = a - b;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} - ${b} = ${masked}`;
+                break;
+            }
+
+            case Opcode.AND: {
+                const { destReg, srcReg } = decoded;
+                const a = this.registers[destReg];
+                const b = this.registers[srcReg];
+                const raw = a & b;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} AND ${b} = ${masked}`;
+                break;
+            }
+
+            case Opcode.OR: {
+                const { destReg, srcReg } = decoded;
+                const a = this.registers[destReg];
+                const b = this.registers[srcReg];
+                const raw = a | b;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} OR ${b} = ${masked}`;
+                break;
+            }
+
+            case Opcode.XOR: {
+                const { destReg, srcReg } = decoded;
+                const a = this.registers[destReg];
+                const b = this.registers[srcReg];
+                const raw = a ^ b;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} XOR ${b} = ${masked}`;
+                break;
+            }
+
+            case Opcode.NOT: {
+                const { destReg } = decoded;
+                const a = this.registers[destReg];
+                const raw = ~a;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← NOT ${a} = ${masked}`;
+                break;
+            }
+
+            case Opcode.SHL: {
+                const { destReg } = decoded;
+                const a = this.registers[destReg];
+                const raw = a << 1;
+                const masked = this.updateFlags(raw);
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} << 1 = ${masked}`;
+                break;
+            }
+
+            case Opcode.SHR: {
+                const { destReg } = decoded;
+                const a = this.registers[destReg];
+                // Carry gets the bit that's about to be shifted out
+                this.flags.C = (a & 1) !== 0;
+                const raw = a >> 1;
+                const masked = raw & 0xFF;
+                this.flags.Z = masked === 0;
+                this.flags.N = (masked & 0x80) !== 0;
+                this.registers[destReg] = masked;
+                result.changedRegisters.push(destReg);
+                result.flagsChanged = true;
+                result.details = `${destReg} ← ${a} >> 1 = ${masked}`;
                 break;
             }
 
@@ -321,15 +491,6 @@ class CPU {
         return result;
     }
 
-    /**
-     * Run one complete CPU cycle: Fetch → Decode → Execute.
-     * 
-     * This is THE fundamental operation of every CPU ever made.
-     * A modern CPU does this billions of times per second.
-     * We do it one step at a time so you can see what's happening.
-     * 
-     * @returns {Object} A detailed log of what happened this cycle
-     */
     step() {
         if (this.halted) {
             return { status: 'halted', message: 'CPU is halted. Reset to run again.' };
@@ -338,11 +499,7 @@ class CPU {
         const pc = this.registers[Register.PC];
         this.cycleCount++;
 
-        // ═══════════════════════════════════════
-        // STEP 1: FETCH
-        // ═══════════════════════════════════════
         const instruction = this.fetch();
-
         if (!instruction) {
             this.halted = true;
             return {
@@ -351,21 +508,9 @@ class CPU {
             };
         }
 
-        // ═══════════════════════════════════════
-        // STEP 2: DECODE
-        // ═══════════════════════════════════════
         const decoded = this.decode(instruction);
-
-        // ═══════════════════════════════════════
-        // STEP 3: EXECUTE
-        // ═══════════════════════════════════════
         const result = this.execute(decoded);
 
-        // ═══════════════════════════════════════
-        // ADVANCE THE PROGRAM COUNTER
-        // ═══════════════════════════════════════
-        // After executing, PC moves to the next instruction.
-        // (In later iterations, jumps/branches will change PC differently.)
         if (!this.halted) {
             this.registers[Register.PC] = pc + 1;
             result.changedRegisters.push(Register.PC);
@@ -382,8 +527,6 @@ class CPU {
     }
 }
 
-// Export for use by app.js
-// (We're using a simple script-based approach, so these become globals)
 window.CPU = CPU;
 window.Opcode = Opcode;
 window.Register = Register;
