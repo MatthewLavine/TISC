@@ -1,28 +1,28 @@
 /* ============================================================
-   TISC — CPU Engine (Iteration 3)
+   TISC — CPU Engine (Iteration 4)
    
-   KEY CONCEPTS (New in Iteration 3):
+   KEY CONCEPTS (New in Iteration 4):
    
-   6. RAM (Random Access Memory):
-      Registers are fast but tiny (we only have 4). RAM gives the
-      CPU a much larger workspace — 256 bytes in our case.
+   8. BRANCHING (Jumps):
+      Until now, the PC always increments by 1 after each step.
+      Branching instructions CHANGE the PC to a different address,
+      letting the CPU skip ahead or loop back.
       
-      Unlike registers, RAM is accessed by ADDRESS. Think of it
-      like a row of numbered mailboxes: to read or write data,
-      you specify which mailbox number (address) you want.
+   9. CONDITIONAL JUMPS:
+      The real power comes from CONDITIONAL jumps — they check
+      the flags register and only jump if a condition is true:
       
-   7. LOAD and STORE:
-      Two new instructions connect registers to RAM:
+      - JZ addr:  Jump if Zero flag is set   (result was 0)
+      - JNZ addr: Jump if Zero flag is clear  (result was not 0)
+      - JN addr:  Jump if Negative flag is set
       
-      - STORE reg, addr: Copy a register's value INTO RAM
-        (register → memory). Like putting a letter in a mailbox.
+      Combined with CMP (compare), this gives us if/else and loops.
       
-      - LOAD reg, addr: Copy a value FROM RAM into a register
-        (memory → register). Like checking your mailbox.
-      
-      This register↔memory dance is fundamental to ALL computing.
-      Programs use registers for active computation and RAM for
-      longer-term storage of data.
+   10. CMP (Compare):
+       CMP subtracts two registers just like SUB, but THROWS AWAY
+       the result — it only keeps the flags. This lets you ask
+       "are these equal?" or "which is bigger?" without destroying
+       any data.
    ============================================================ */
 
 const Opcode = Object.freeze({
@@ -41,10 +41,20 @@ const Opcode = Object.freeze({
     SHR: 'SHR',
 
     // --- Iteration 3: Memory access ---
-    /** Store register to RAM: memory[addr] = reg */
     STORE: 'STORE',
-    /** Load from RAM to register: reg = memory[addr] */
     LOAD: 'LOAD',
+
+    // --- Iteration 4: Branching ---
+    /** Unconditional jump: PC = addr */
+    JMP: 'JMP',
+    /** Jump if Zero flag set: if (Z) PC = addr */
+    JZ: 'JZ',
+    /** Jump if Zero flag clear: if (!Z) PC = addr */
+    JNZ: 'JNZ',
+    /** Jump if Negative flag set: if (N) PC = addr */
+    JN: 'JN',
+    /** Compare: sets flags from (reg1 - reg2) without storing result */
+    CMP: 'CMP',
 });
 
 /** RAM size in bytes. 256 = one byte can address the whole space (0x00–0xFF). */
@@ -234,6 +244,65 @@ const PROGRAMS = {
             makeInstruction(Opcode.LOAD, Register.R1, 0x01),         // reload: R1 = 7
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 21
             makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    // --- Iteration 4: Branching programs ---
+    'countdown': {
+        name: 'Countdown (Loop)',
+        description: 'Counts down from 5 to 0 using a loop. R0 starts at 5, subtracts 1 each iteration, and jumps back until R0 hits 0. This is the CPU\'s first loop!',
+        instructions: [
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 5),    // R0 = 5
+            /* 1 */ makeInstruction(Opcode.LOAD_IMM, Register.R1, 1),    // R1 = 1 (decrement amount)
+            // --- loop start (addr 2) ---
+            /* 2 */ makeInstruction(Opcode.SUB, Register.R0, Register.R1), // R0 = R0 - 1
+            /* 3 */ makeInstruction(Opcode.JNZ, 2),                       // if R0 != 0, jump back to addr 2
+            // --- loop end ---
+            /* 4 */ makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'count-to-n': {
+        name: 'Count Up to N',
+        description: 'Counts from 0 up to 5 using CMP and JNZ. R0 is the counter, R1 is the target. Each iteration increments R0 and compares it to R1 — when they\'re equal, CMP sets the Zero flag and the loop exits.',
+        instructions: [
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),    // R0 = counter = 0
+            /* 1 */ makeInstruction(Opcode.LOAD_IMM, Register.R1, 5),    // R1 = target = 5
+            /* 2 */ makeInstruction(Opcode.LOAD_IMM, Register.R2, 1),    // R2 = step = 1
+            // --- loop start (addr 3) ---
+            /* 3 */ makeInstruction(Opcode.ADD, Register.R0, Register.R2), // R0 += 1
+            /* 4 */ makeInstruction(Opcode.CMP, Register.R0, Register.R1), // compare R0 to R1
+            /* 5 */ makeInstruction(Opcode.JNZ, 3),                       // if not equal, loop
+            // --- loop end ---
+            /* 6 */ makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'find-max': {
+        name: 'Find Maximum',
+        description: 'Finds the largest of 3 values (stored in RAM) using conditional jumps. Loads each value and compares it to the current max — classic if/else logic in assembly!',
+        instructions: [
+            // Store 3 values in RAM
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 17),
+            /* 1 */ makeInstruction(Opcode.STORE, Register.R0, 0x00),     // array[0] = 17
+            /* 2 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 42),
+            /* 3 */ makeInstruction(Opcode.STORE, Register.R0, 0x01),     // array[1] = 42
+            /* 4 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 31),
+            /* 5 */ makeInstruction(Opcode.STORE, Register.R0, 0x02),     // array[2] = 31
+            // R0 = max = array[0]
+            /* 6 */ makeInstruction(Opcode.LOAD, Register.R0, 0x00),      // max = 17
+            // Compare with array[1]
+            /* 7 */ makeInstruction(Opcode.LOAD, Register.R1, 0x01),      // R1 = 42
+            /* 8 */ makeInstruction(Opcode.CMP, Register.R1, Register.R0), // 42 - 17 = 25 (positive, no N flag)
+            /* 9 */ makeInstruction(Opcode.JN, 11),                       // if R1 < R0, skip update
+            /* 10 */ makeInstruction(Opcode.LOAD, Register.R0, 0x01),     // max = 42
+            // Compare with array[2]
+            /* 11 */ makeInstruction(Opcode.LOAD, Register.R1, 0x02),     // R1 = 31
+            /* 12 */ makeInstruction(Opcode.CMP, Register.R1, Register.R0), // 31 - 42 = negative (N flag set)
+            /* 13 */ makeInstruction(Opcode.JN, 15),                      // if R1 < R0, skip update
+            /* 14 */ makeInstruction(Opcode.LOAD, Register.R0, 0x02),     // max = array[2]
+            // R0 now holds the maximum value
+            /* 15 */ makeInstruction(Opcode.HALT),
         ],
     },
 };
@@ -455,6 +524,47 @@ class CPU {
                     address: operands[1],
                 };
 
+            case Opcode.JMP:
+                return {
+                    opcode,
+                    description: `Jump to address ${operands[0]} (unconditional)`,
+                    assembly: `JMP ${operands[0]}`,
+                    target: operands[0],
+                };
+
+            case Opcode.JZ:
+                return {
+                    opcode,
+                    description: `Jump to address ${operands[0]} if Zero flag is set`,
+                    assembly: `JZ ${operands[0]}`,
+                    target: operands[0],
+                };
+
+            case Opcode.JNZ:
+                return {
+                    opcode,
+                    description: `Jump to address ${operands[0]} if Zero flag is NOT set`,
+                    assembly: `JNZ ${operands[0]}`,
+                    target: operands[0],
+                };
+
+            case Opcode.JN:
+                return {
+                    opcode,
+                    description: `Jump to address ${operands[0]} if Negative flag is set`,
+                    assembly: `JN ${operands[0]}`,
+                    target: operands[0],
+                };
+
+            case Opcode.CMP:
+                return {
+                    opcode,
+                    description: `Compare ${operands[0]} and ${operands[1]} (subtract, set flags, discard result)`,
+                    assembly: `CMP ${operands[0]}, ${operands[1]}`,
+                    reg1: operands[0],
+                    reg2: operands[1],
+                };
+
             case Opcode.HALT:
                 return {
                     opcode,
@@ -477,6 +587,7 @@ class CPU {
             changedRegisters: [],
             flagsChanged: false,
             memoryChanged: false,
+            jumped: false,
             details: '',
         };
 
@@ -613,6 +724,66 @@ class CPU {
                 break;
             }
 
+            case Opcode.JMP: {
+                const { target } = decoded;
+                this.registers[Register.PC] = target;
+                result.jumped = true;
+                result.changedRegisters.push(Register.PC);
+                result.details = `Jump → address ${target}`;
+                break;
+            }
+
+            case Opcode.JZ: {
+                const { target } = decoded;
+                if (this.flags.Z) {
+                    this.registers[Register.PC] = target;
+                    result.jumped = true;
+                    result.changedRegisters.push(Register.PC);
+                    result.details = `Z=1, jump → address ${target}`;
+                } else {
+                    result.details = `Z=0, no jump (continue to next)`;
+                }
+                break;
+            }
+
+            case Opcode.JNZ: {
+                const { target } = decoded;
+                if (!this.flags.Z) {
+                    this.registers[Register.PC] = target;
+                    result.jumped = true;
+                    result.changedRegisters.push(Register.PC);
+                    result.details = `Z=0, jump → address ${target}`;
+                } else {
+                    result.details = `Z=1, no jump (continue to next)`;
+                }
+                break;
+            }
+
+            case Opcode.JN: {
+                const { target } = decoded;
+                if (this.flags.N) {
+                    this.registers[Register.PC] = target;
+                    result.jumped = true;
+                    result.changedRegisters.push(Register.PC);
+                    result.details = `N=1, jump → address ${target}`;
+                } else {
+                    result.details = `N=0, no jump (continue to next)`;
+                }
+                break;
+            }
+
+            case Opcode.CMP: {
+                const { reg1, reg2 } = decoded;
+                const a = this.registers[reg1];
+                const b = this.registers[reg2];
+                const raw = a - b;
+                this.updateFlags(raw);
+                // CMP does NOT store the result — only flags change
+                result.flagsChanged = true;
+                result.details = `${reg1}(${a}) - ${reg2}(${b}) = ${raw & 0xFF} (flags only)`;
+                break;
+            }
+
             case Opcode.HALT: {
                 this.halted = true;
                 result.details = 'CPU halted';
@@ -647,7 +818,8 @@ class CPU {
         const decoded = this.decode(instruction);
         const result = this.execute(decoded);
 
-        if (!this.halted) {
+        // Only increment PC if the instruction didn't jump
+        if (!this.halted && !result.jumped) {
             this.registers[Register.PC] = pc + 1;
             result.changedRegisters.push(Register.PC);
         }

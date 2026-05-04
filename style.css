@@ -763,6 +763,9 @@ body::before {
 .log-memory { border-left-color: var(--accent-amber); background: rgba(251, 191, 36, 0.04); }
 .log-memory .log-badge { background: var(--accent-amber-dim); color: var(--accent-amber); }
 
+.log-jump { border-left-color: var(--accent-purple); background: rgba(167, 139, 250, 0.04); }
+.log-jump .log-badge { background: var(--accent-purple-dim); color: var(--accent-purple); }
+
 .log-entry strong { color: var(--text-bright); }
 .log-entry code {
     font-family: var(--font-mono);

@@ -129,6 +129,8 @@
             'AND': 0x04, 'OR': 0x05, 'XOR': 0x06,
             'NOT': 0x07, 'SHL': 0x08, 'SHR': 0x09,
             'STORE': 0x0A, 'LOAD': 0x0B,
+            'JMP': 0x10, 'JZ': 0x11, 'JNZ': 0x12, 'JN': 0x13,
+            'CMP': 0x14,
             'HALT': 0xFF,
         };
         const regMap = { 'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3 };
@@ -140,7 +142,7 @@
                 const imm = instr.operands[1] & 0xFF;
                 return `${formatHex(opByte)} ${formatHex(reg)} ${formatHex(imm)}`;
             }
-            case 'ADD': case 'SUB': case 'AND': case 'OR': case 'XOR': {
+            case 'ADD': case 'SUB': case 'AND': case 'OR': case 'XOR': case 'CMP': {
                 const dest = regMap[instr.operands[0]] || 0;
                 const src = regMap[instr.operands[1]] || 0;
                 return `${formatHex(opByte)} ${formatHex(dest)} ${formatHex(src)}`;
@@ -153,6 +155,10 @@
                 const reg = regMap[instr.operands[0]] || 0;
                 const addr = instr.operands[1] & 0xFF;
                 return `${formatHex(opByte)} ${formatHex(reg)} ${formatHex(addr)}`;
+            }
+            case 'JMP': case 'JZ': case 'JNZ': case 'JN': {
+                const target = instr.operands[0] & 0xFF;
+                return `${formatHex(opByte)} ${formatHex(target)}`;
             }
             case 'HALT': return `${formatHex(opByte)}`;
             default: return '??';
@@ -320,7 +326,13 @@
                 } else if (stepResult.status === 'ok') {
                     let logMsg = stepResult.result.details;
                     if (stepResult.result.flagsChanged) logMsg += flagsSummary();
-                    addLogEntry(stepResult.result.memoryChanged ? 'memory' : 'execute', logMsg);
+
+                    // Pick log type based on what the instruction did
+                    let logType = 'execute';
+                    if (stepResult.result.memoryChanged) logType = 'memory';
+                    else if (stepResult.result.jumped) logType = 'jump';
+
+                    addLogEntry(logType, logMsg);
                     flashRegisters(stepResult.result.changedRegisters);
                     if (decoded.opcode === 'LOAD') {
                         renderRamViewer([], [decoded.address & 0xFF]);
@@ -343,8 +355,14 @@
     function startRunning() {
         isRunning = true;
         const speed = parseInt(dom.speedSlider.value);
+        const MAX_CYCLES = 500;
         runTimer = setInterval(() => {
             if (cpu.halted) { stopRunning(); updateUI(); return; }
+            if (cpu.cycleCount >= MAX_CYCLES) {
+                addLogEntry('halt', `Safety stop: ${MAX_CYCLES} cycles reached (possible infinite loop).`);
+                cpu.halted = true;
+                stopRunning(); updateUI(); return;
+            }
             onStep();
         }, Math.max(100, 1000 / speed));
         updateUI();
