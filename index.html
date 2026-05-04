@@ -11,13 +11,32 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Header -->
     <header id="main-header">
         <div class="header-left">
-            <h1 id="site-title">
-                <span class="title-icon">⚡</span>
-                TISC
-            </h1>
+            <h1 id="site-title"><span class="title-icon">⚡</span> TISC</h1>
             <span class="subtitle">Toy Instruction Set Computer</span>
+        </div>
+        <div class="header-center">
+            <select id="program-select" class="program-select">
+                <optgroup label="Basics">
+                    <option value="add-two-numbers">Add Two Numbers</option>
+                    <option value="sum-three">Sum Three Values</option>
+                    <option value="register-shuffle">Register Shuffle</option>
+                </optgroup>
+                <optgroup label="ALU & Flags">
+                    <option value="subtract-to-zero">Subtract to Zero (Z flag)</option>
+                    <option value="bitwise-masking">Bitwise Masking (AND)</option>
+                    <option value="shift-multiply">Shift = Multiply/Divide</option>
+                    <option value="xor-swap">XOR Swap Trick</option>
+                    <option value="not-complement">NOT (Bitwise Complement)</option>
+                </optgroup>
+                <optgroup label="Memory">
+                    <option value="store-and-load">Store & Load</option>
+                    <option value="memory-array">Memory Array</option>
+                    <option value="register-spill">Register Spill</option>
+                </optgroup>
+            </select>
         </div>
         <div class="header-right">
             <span class="iteration-badge">Iteration 3: Memory (RAM)</span>
@@ -25,225 +44,146 @@
     </header>
 
     <main id="app">
-        <!-- Concept Explainer -->
-        <section id="concept-panel" class="panel">
-            <div class="panel-header">
-                <h2>💡 The Big Idea</h2>
-                <button id="toggle-concept-btn" class="icon-btn" aria-label="Toggle concept panel">▼</button>
-            </div>
-            <div id="concept-content" class="panel-body">
-                <p>Registers are fast but tiny (we only have 4). <strong>RAM</strong> gives the CPU a much larger workspace — 256 bytes, each with its own <strong>address</strong>.</p>
-                <div class="memory-concept-diagram">
-                    <div class="mem-concept-cpu">
-                        <div class="mem-concept-label">CPU</div>
-                        <div class="mem-concept-regs">R0 R1 R2 R3</div>
+        <!-- Top Strip: CPU State (registers, flags, controls) -->
+        <div class="cpu-strip">
+            <!-- Registers -->
+            <div class="strip-group" id="registers-group">
+                <div class="strip-label">Registers</div>
+                <div class="strip-registers">
+                    <div class="sreg sreg-pc" id="reg-pc">
+                        <span class="sreg-name">PC</span>
+                        <span class="sreg-val" id="reg-pc-value">0</span>
                     </div>
-                    <div class="mem-concept-bus">
-                        <div class="mem-concept-arrow">← LOAD</div>
-                        <div class="mem-concept-wire"></div>
-                        <div class="mem-concept-arrow">STORE →</div>
+                    <div class="sreg" id="reg-r0">
+                        <span class="sreg-name">R0</span>
+                        <span class="sreg-val" id="reg-r0-value">0</span>
                     </div>
-                    <div class="mem-concept-ram">
-                        <div class="mem-concept-label">RAM</div>
-                        <div class="mem-concept-cells">256 bytes</div>
+                    <div class="sreg" id="reg-r1">
+                        <span class="sreg-name">R1</span>
+                        <span class="sreg-val" id="reg-r1-value">0</span>
+                    </div>
+                    <div class="sreg" id="reg-r2">
+                        <span class="sreg-name">R2</span>
+                        <span class="sreg-val" id="reg-r2-value">0</span>
+                    </div>
+                    <div class="sreg" id="reg-r3">
+                        <span class="sreg-name">R3</span>
+                        <span class="sreg-val" id="reg-r3-value">0</span>
                     </div>
                 </div>
-                <p class="concept-note"><strong>STORE</strong> copies a register's value into a RAM address. <strong>LOAD</strong> copies a value from RAM into a register. This register↔memory dance is how all programs manage data.</p>
-            </div>
-        </section>
-
-        <div class="sim-layout">
-            <!-- Left Column: CPU State -->
-            <div class="sim-column">
-                <!-- Registers -->
-                <section id="registers-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>📋 Registers</h2>
-                        <span class="panel-hint">Tiny, super-fast storage inside the CPU</span>
-                    </div>
-                    <div class="panel-body">
-                        <div class="register-grid">
-                            <div class="register" id="reg-pc">
-                                <div class="reg-label">PC</div>
-                                <div class="reg-value" id="reg-pc-value">0</div>
-                                <div class="reg-desc">Program Counter</div>
-                            </div>
-                            <div class="register" id="reg-r0">
-                                <div class="reg-label">R0</div>
-                                <div class="reg-value" id="reg-r0-value">0</div>
-                                <div class="reg-desc">General Purpose</div>
-                            </div>
-                            <div class="register" id="reg-r1">
-                                <div class="reg-label">R1</div>
-                                <div class="reg-value" id="reg-r1-value">0</div>
-                                <div class="reg-desc">General Purpose</div>
-                            </div>
-                            <div class="register" id="reg-r2">
-                                <div class="reg-label">R2</div>
-                                <div class="reg-value" id="reg-r2-value">0</div>
-                                <div class="reg-desc">General Purpose</div>
-                            </div>
-                            <div class="register" id="reg-r3">
-                                <div class="reg-label">R3</div>
-                                <div class="reg-value" id="reg-r3-value">0</div>
-                                <div class="reg-desc">General Purpose</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Flags Register -->
-                <section id="flags-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>🚩 Flags</h2>
-                        <span class="panel-hint">Set automatically after ALU operations</span>
-                    </div>
-                    <div class="panel-body">
-                        <div class="flags-grid">
-                            <div class="flag" id="flag-z">
-                                <div class="flag-indicator" id="flag-z-dot"></div>
-                                <div class="flag-label">Z</div>
-                                <div class="flag-name">Zero</div>
-                                <div class="flag-desc">Result was 0</div>
-                            </div>
-                            <div class="flag" id="flag-n">
-                                <div class="flag-indicator" id="flag-n-dot"></div>
-                                <div class="flag-label">N</div>
-                                <div class="flag-name">Negative</div>
-                                <div class="flag-desc">Top bit is 1</div>
-                            </div>
-                            <div class="flag" id="flag-c">
-                                <div class="flag-indicator" id="flag-c-dot"></div>
-                                <div class="flag-label">C</div>
-                                <div class="flag-name">Carry</div>
-                                <div class="flag-desc">Overflow occurred</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Controls -->
-                <section id="controls-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>🎮 Controls</h2>
-                    </div>
-                    <div class="panel-body">
-                        <div class="controls-row">
-                            <button id="step-btn" class="btn btn-primary" title="Execute one instruction">
-                                <span class="btn-icon">⏭</span> Step
-                            </button>
-                            <button id="run-btn" class="btn btn-success" title="Run continuously">
-                                <span class="btn-icon">▶</span> Run
-                            </button>
-                            <button id="reset-btn" class="btn btn-danger" title="Reset CPU to initial state">
-                                <span class="btn-icon">🔄</span> Reset
-                            </button>
-                        </div>
-                        <div class="speed-control">
-                            <label for="speed-slider">Speed:</label>
-                            <input type="range" id="speed-slider" min="1" max="10" value="3">
-                            <span id="speed-label">3 Hz</span>
-                        </div>
-                        <div class="cpu-status">
-                            <span class="status-dot" id="status-dot"></span>
-                            <span id="status-label">Ready</span>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Program Selector -->
-                <section id="program-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>📀 Programs</h2>
-                    </div>
-                    <div class="panel-body">
-                        <select id="program-select" class="program-select">
-                            <optgroup label="Basics">
-                                <option value="add-two-numbers">Add Two Numbers</option>
-                                <option value="sum-three">Sum Three Values</option>
-                                <option value="register-shuffle">Register Shuffle</option>
-                            </optgroup>
-                            <optgroup label="ALU & Flags">
-                                <option value="subtract-to-zero">Subtract to Zero (Z flag)</option>
-                                <option value="bitwise-masking">Bitwise Masking (AND)</option>
-                                <option value="shift-multiply">Shift = Multiply/Divide</option>
-                                <option value="xor-swap">XOR Swap Trick</option>
-                                <option value="not-complement">NOT (Bitwise Complement)</option>
-                            </optgroup>
-                            <optgroup label="Memory">
-                                <option value="store-and-load">Store & Load</option>
-                                <option value="memory-array">Memory Array</option>
-                                <option value="register-spill">Register Spill</option>
-                            </optgroup>
-                        </select>
-                        <p id="program-description" class="program-desc"></p>
-                    </div>
-                </section>
             </div>
 
-            <!-- Center Column: Program Memory -->
-            <div class="sim-column sim-column-wide">
-                <section id="memory-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>🧠 Program Memory</h2>
-                        <span class="panel-hint">Instructions stored in memory, one per address</span>
+            <!-- Flags -->
+            <div class="strip-group" id="flags-group">
+                <div class="strip-label">Flags</div>
+                <div class="strip-flags">
+                    <div class="sflag" id="flag-z">
+                        <span class="sflag-dot" id="flag-z-dot"></span>
+                        <span class="sflag-name">Z</span>
                     </div>
-                    <div class="panel-body">
-                        <div class="memory-table-wrapper">
-                            <table id="memory-table" class="memory-table">
-                                <thead>
-                                    <tr>
-                                        <th class="col-addr">Addr</th>
-                                        <th class="col-hex">Hex</th>
-                                        <th class="col-asm">Assembly</th>
-                                        <th class="col-explain">Meaning</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="memory-tbody">
-                                    <!-- Populated by JS -->
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="sflag" id="flag-n">
+                        <span class="sflag-dot" id="flag-n-dot"></span>
+                        <span class="sflag-name">N</span>
                     </div>
-                </section>
-
-                <!-- RAM Viewer -->
-                <section id="ram-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>💾 RAM</h2>
-                        <span class="panel-hint">256 bytes of data memory (showing non-zero)</span>
+                    <div class="sflag" id="flag-c">
+                        <span class="sflag-dot" id="flag-c-dot"></span>
+                        <span class="sflag-name">C</span>
                     </div>
-                    <div class="panel-body">
-                        <div id="ram-viewer" class="ram-viewer">
-                            <div class="ram-empty">RAM is empty. Use STORE to write data.</div>
-                        </div>
-                    </div>
-                </section>
+                </div>
             </div>
 
-            <!-- Right Column: Execution Log -->
-            <div class="sim-column">
-                <section id="log-panel" class="panel">
-                    <div class="panel-header">
-                        <h2>📜 Execution Log</h2>
-                        <button id="clear-log-btn" class="icon-btn" title="Clear log">✕</button>
-                    </div>
-                    <div class="panel-body">
-                        <div id="log-entries" class="log-entries">
-                            <div class="log-entry log-info">
-                                <span class="log-badge">INFO</span>
-                                CPU initialized. Press <strong>Step</strong> or <strong>Run</strong> to begin.
-                            </div>
-                        </div>
-                    </div>
-                </section>
+            <!-- Controls -->
+            <div class="strip-group" id="controls-group">
+                <div class="strip-controls">
+                    <button id="step-btn" class="btn btn-primary" title="Step (S)">
+                        <span class="btn-icon">⏭</span> Step
+                    </button>
+                    <button id="run-btn" class="btn btn-success" title="Run (R)">
+                        <span class="btn-icon">▶</span> Run
+                    </button>
+                    <button id="reset-btn" class="btn btn-danger" title="Reset (Esc)">
+                        <span class="btn-icon">🔄</span> Reset
+                    </button>
+                </div>
+                <div class="strip-speed">
+                    <input type="range" id="speed-slider" min="1" max="10" value="3">
+                    <span id="speed-label">3 Hz</span>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div class="strip-group" id="status-group">
+                <div class="cpu-status">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-label">Ready</span>
+                </div>
+            </div>
+
+            <!-- Info Toggle -->
+            <div class="strip-group strip-info-toggle">
+                <button id="toggle-concept-btn" class="btn-info-toggle" title="Show/hide explanation">
+                    💡 Info
+                </button>
             </div>
         </div>
-    </main>
 
-    <footer id="main-footer">
-        <p>TISC — Learning how CPUs work, one instruction at a time.</p>
-    </footer>
+        <!-- Collapsible Info Bar -->
+        <div id="concept-bar" class="concept-bar" style="display: none;">
+            <p id="program-description" class="concept-desc"></p>
+            <p class="concept-tip"><strong>STORE</strong> copies a register's value into a RAM address. <strong>LOAD</strong> copies a value from RAM back into a register.</p>
+        </div>
+
+        <!-- Main Content: 3 columns -->
+        <div class="main-content">
+            <!-- Program Memory -->
+            <section id="memory-panel" class="panel">
+                <div class="panel-header">
+                    <h2>🧠 Program Memory</h2>
+                </div>
+                <div class="panel-body panel-scroll">
+                    <table id="memory-table" class="memory-table">
+                        <thead>
+                            <tr>
+                                <th class="col-addr">Addr</th>
+                                <th class="col-hex">Hex</th>
+                                <th class="col-asm">Assembly</th>
+                                <th class="col-explain">Meaning</th>
+                            </tr>
+                        </thead>
+                        <tbody id="memory-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- RAM -->
+            <section id="ram-panel" class="panel">
+                <div class="panel-header">
+                    <h2>💾 RAM</h2>
+                </div>
+                <div class="panel-body panel-scroll">
+                    <div id="ram-viewer" class="ram-viewer">
+                        <div class="ram-empty">RAM is empty. Use STORE to write data.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Execution Log -->
+            <section id="log-panel" class="panel">
+                <div class="panel-header">
+                    <h2>📜 Log</h2>
+                    <button id="clear-log-btn" class="icon-btn" title="Clear log">✕</button>
+                </div>
+                <div class="panel-body">
+                    <div id="log-entries" class="log-entries">
+                        <div class="log-entry log-info">
+                            <span class="log-badge">INFO</span>
+                            Press <strong>Step</strong> or <strong>Run</strong> to begin.
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
 
     <script src="cpu.js"></script>
     <script src="app.js"></script>

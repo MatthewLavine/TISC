@@ -1,10 +1,5 @@
 /* ============================================================
-   TISC — App Controller (Iteration 3)
-   
-   Now includes:
-   - RAM viewer showing a hex grid of memory contents
-   - Visual highlighting of memory reads (cyan) and writes (green)
-   - Flags panel with LED indicators
+   TISC — App Controller (Iteration 3 — Redesigned Layout)
    ============================================================ */
 
 (function () {
@@ -16,7 +11,6 @@
     let currentProgramId = 'add-two-numbers';
 
     const dom = {
-        // Registers
         regPC: document.getElementById('reg-pc-value'),
         regR0: document.getElementById('reg-r0-value'),
         regR1: document.getElementById('reg-r1-value'),
@@ -28,12 +22,10 @@
         regR2Container: document.getElementById('reg-r2'),
         regR3Container: document.getElementById('reg-r3'),
 
-        // Flags
         flagZ: document.getElementById('flag-z'),
         flagN: document.getElementById('flag-n'),
         flagC: document.getElementById('flag-c'),
 
-        // Controls
         stepBtn: document.getElementById('step-btn'),
         runBtn: document.getElementById('run-btn'),
         resetBtn: document.getElementById('reset-btn'),
@@ -42,23 +34,17 @@
         statusDot: document.getElementById('status-dot'),
         statusLabel: document.getElementById('status-label'),
 
-        // Program
         programSelect: document.getElementById('program-select'),
         programDescription: document.getElementById('program-description'),
 
-        // Memory
         memoryTbody: document.getElementById('memory-tbody'),
-
-        // RAM
         ramViewer: document.getElementById('ram-viewer'),
 
-        // Log
         logEntries: document.getElementById('log-entries'),
         clearLogBtn: document.getElementById('clear-log-btn'),
 
-        // Concept toggle
         toggleConceptBtn: document.getElementById('toggle-concept-btn'),
-        conceptContent: document.getElementById('concept-content'),
+        conceptBar: document.getElementById('concept-bar'),
     };
 
     const regValueElements = {
@@ -97,17 +83,11 @@
             switch (e.key) {
                 case ' ':
                 case 's':
-                    e.preventDefault();
-                    onStep();
-                    break;
+                    e.preventDefault(); onStep(); break;
                 case 'r':
-                    e.preventDefault();
-                    onToggleRun();
-                    break;
+                    e.preventDefault(); onToggleRun(); break;
                 case 'Escape':
-                    e.preventDefault();
-                    onReset();
-                    break;
+                    e.preventDefault(); onReset(); break;
             }
         });
     }
@@ -121,12 +101,10 @@
         dom.programDescription.textContent = program.description;
         renderMemoryTable();
         clearLog();
-        addLogEntry('info', `Loaded program: <strong>${program.name}</strong>`);
-        addLogEntry('info', 'Press <strong>Step</strong> or <strong>Run</strong> to begin.');
+        addLogEntry('info', `Loaded: <strong>${program.name}</strong> — ${program.description}`);
         updateUI();
     }
 
-    // --- Memory Table ---
     function renderMemoryTable() {
         dom.memoryTbody.innerHTML = '';
         cpu.program.forEach((instruction, addr) => {
@@ -134,22 +112,12 @@
             const row = document.createElement('tr');
             row.dataset.addr = addr;
 
-            const addrCell = document.createElement('td');
-            addrCell.innerHTML = `<span class="cell-addr">${formatHex(addr, 2)}</span>`;
-            row.appendChild(addrCell);
-
-            const hexCell = document.createElement('td');
-            hexCell.innerHTML = `<span class="cell-hex">${encodeInstructionHex(instruction)}</span>`;
-            row.appendChild(hexCell);
-
-            const asmCell = document.createElement('td');
-            asmCell.innerHTML = `<span class="cell-asm">${decoded.assembly}</span>`;
-            row.appendChild(asmCell);
-
-            const explainCell = document.createElement('td');
-            explainCell.innerHTML = `<span class="cell-explain">${decoded.description}</span>`;
-            row.appendChild(explainCell);
-
+            row.innerHTML = `
+                <td><span class="cell-addr">${formatHex(addr, 2)}</span></td>
+                <td><span class="cell-hex">${encodeInstructionHex(instruction)}</span></td>
+                <td><span class="cell-asm">${decoded.assembly}</span></td>
+                <td><span class="cell-explain">${decoded.description}</span></td>
+            `;
             dom.memoryTbody.appendChild(row);
         });
         highlightCurrentInstruction();
@@ -186,10 +154,8 @@
                 const addr = instr.operands[1] & 0xFF;
                 return `${formatHex(opByte)} ${formatHex(reg)} ${formatHex(addr)}`;
             }
-            case 'HALT':
-                return `${formatHex(opByte)}`;
-            default:
-                return '??';
+            case 'HALT': return `${formatHex(opByte)}`;
+            default: return '??';
         }
     }
 
@@ -215,36 +181,19 @@
                 addrCell.prepend(marker);
             }
 
-            if (idx < pc) {
-                row.classList.add('executed');
-            } else {
-                row.classList.remove('executed');
-            }
+            if (idx < pc) row.classList.add('executed');
+            else row.classList.remove('executed');
         });
     }
 
     // --- RAM Viewer ---
-    /**
-     * Render the RAM viewer as a simple vertical list.
-     * Shows each non-zero address with its value — much clearer
-     * than a hex grid for understanding how memory works.
-     */
     function renderRamViewer(changedAddresses, readAddresses) {
-        // Collect all addresses worth showing
         const entries = [];
         for (let i = 0; i < RAM_SIZE; i++) {
-            if (cpu.ram[i] !== 0) {
-                entries.push(i);
-            }
+            if (cpu.ram[i] !== 0) entries.push(i);
         }
-
-        // Also include recently changed/read addresses even if zero
-        (changedAddresses || []).forEach(a => {
-            if (!entries.includes(a)) entries.push(a);
-        });
-        (readAddresses || []).forEach(a => {
-            if (!entries.includes(a)) entries.push(a);
-        });
+        (changedAddresses || []).forEach(a => { if (!entries.includes(a)) entries.push(a); });
+        (readAddresses || []).forEach(a => { if (!entries.includes(a)) entries.push(a); });
         entries.sort((a, b) => a - b);
 
         if (entries.length === 0) {
@@ -253,7 +202,7 @@
         }
 
         let html = '<table class="ram-table">';
-        html += '<thead><tr><th>Address</th><th>Value (dec)</th><th>Value (hex)</th><th></th></tr></thead>';
+        html += '<thead><tr><th>Address</th><th>Dec</th><th>Hex</th><th></th></tr></thead>';
         html += '<tbody>';
 
         for (const addr of entries) {
@@ -288,7 +237,6 @@
         for (const [reg, el] of Object.entries(regValueElements)) {
             el.textContent = cpu.getRegister(reg);
         }
-
         updateFlagsUI();
         renderRamViewer(cpu.ramChanges);
 
@@ -300,11 +248,11 @@
             if (isRunning) stopRunning();
         } else if (isRunning) {
             dom.statusDot.className = 'status-dot running';
-            dom.statusLabel.textContent = `Running (cycle ${cpu.cycleCount})`;
+            dom.statusLabel.textContent = `Running (${cpu.cycleCount})`;
             dom.stepBtn.disabled = true;
         } else {
             dom.statusDot.className = 'status-dot';
-            dom.statusLabel.textContent = cpu.cycleCount === 0 ? 'Ready' : `Paused (cycle ${cpu.cycleCount})`;
+            dom.statusLabel.textContent = cpu.cycleCount === 0 ? 'Ready' : `Cycle ${cpu.cycleCount}`;
             dom.stepBtn.disabled = false;
             dom.runBtn.disabled = false;
         }
@@ -334,19 +282,15 @@
         }
     }
 
-    // --- Logging ---
     function addLogEntry(type, html) {
         const entry = document.createElement('div');
         entry.className = `log-entry log-${type}`;
-        const badgeText = type.toUpperCase();
-        entry.innerHTML = `<span class="log-badge">${badgeText}</span> ${html}`;
+        entry.innerHTML = `<span class="log-badge">${type.toUpperCase()}</span> ${html}`;
         dom.logEntries.appendChild(entry);
         dom.logEntries.scrollTop = dom.logEntries.scrollHeight;
     }
 
-    function clearLog() {
-        dom.logEntries.innerHTML = '';
-    }
+    function clearLog() { dom.logEntries.innerHTML = ''; }
 
     function flagsSummary() {
         const parts = [];
@@ -354,8 +298,8 @@
         if (cpu.flags.N) parts.push('N=1');
         if (cpu.flags.C) parts.push('C=1');
         return parts.length > 0
-            ? ` → flags: <code>${parts.join(', ')}</code>`
-            : ' → flags: <code>all clear</code>';
+            ? ` → <code>${parts.join(', ')}</code>`
+            : '';
     }
 
     // --- Event Handlers ---
@@ -365,33 +309,30 @@
         const pc = cpu.getRegister(Register.PC);
         const instruction = cpu.program[pc];
         if (!instruction) {
-            addLogEntry('halt', 'PC out of bounds — no instruction to fetch!');
+            addLogEntry('halt', 'PC out of bounds!');
             cpu.halted = true;
             updateUI();
             return;
         }
 
         const decoded = cpu.decode(instruction);
-        addLogEntry('fetch', `<strong>Fetch</strong> from <code>${formatHex(pc, 2)}</code>: <code>${decoded.assembly}</code>`);
+        addLogEntry('fetch', `Fetch <code>${formatHex(pc, 2)}</code>: <code>${decoded.assembly}</code>`);
 
         setTimeout(() => {
-            addLogEntry('decode', `<strong>Decode</strong>: ${decoded.description}`);
+            addLogEntry('decode', decoded.description);
 
             setTimeout(() => {
                 const stepResult = cpu.step();
 
                 if (stepResult.status === 'halted' && stepResult.result) {
-                    addLogEntry('execute', `<strong>Execute</strong>: ${stepResult.result.details}`);
-                    addLogEntry('halt', `CPU halted after <strong>${cpu.cycleCount}</strong> cycles.`);
+                    addLogEntry('execute', stepResult.result.details);
+                    addLogEntry('halt', `Halted after ${cpu.cycleCount} cycles.`);
                     flashRegisters(stepResult.result.changedRegisters || []);
                 } else if (stepResult.status === 'ok') {
-                    let logMsg = `<strong>Execute</strong>: ${stepResult.result.details}`;
+                    let logMsg = stepResult.result.details;
                     if (stepResult.result.flagsChanged) logMsg += flagsSummary();
-                    const logType = stepResult.result.memoryChanged ? 'memory' : 'execute';
-                    addLogEntry(logType, logMsg);
+                    addLogEntry(stepResult.result.memoryChanged ? 'memory' : 'execute', logMsg);
                     flashRegisters(stepResult.result.changedRegisters);
-
-                    // For LOAD instructions, highlight the read address
                     if (decoded.opcode === 'LOAD') {
                         renderRamViewer([], [decoded.address & 0xFF]);
                     }
@@ -400,24 +341,23 @@
                 }
 
                 updateUI();
-            }, isRunning ? 0 : 120);
-        }, isRunning ? 0 : 120);
+            }, isRunning ? 0 : 100);
+        }, isRunning ? 0 : 100);
     }
 
     function onToggleRun() {
         if (cpu.halted) return;
-        if (isRunning) { stopRunning(); } else { startRunning(); }
+        if (isRunning) stopRunning(); else startRunning();
         updateUI();
     }
 
     function startRunning() {
         isRunning = true;
         const speed = parseInt(dom.speedSlider.value);
-        const interval = Math.max(100, 1000 / speed);
         runTimer = setInterval(() => {
             if (cpu.halted) { stopRunning(); updateUI(); return; }
             onStep();
-        }, interval);
+        }, Math.max(100, 1000 / speed));
         updateUI();
     }
 
@@ -430,31 +370,17 @@
     function onReset() { stopRunning(); loadProgram(currentProgramId); }
 
     function onSpeedChange() {
-        const speed = parseInt(dom.speedSlider.value);
-        dom.speedLabel.textContent = `${speed} Hz`;
+        dom.speedLabel.textContent = `${dom.speedSlider.value} Hz`;
         if (isRunning) { stopRunning(); startRunning(); }
     }
 
-    function onProgramChange() {
-        stopRunning();
-        loadProgram(dom.programSelect.value);
-    }
+    function onProgramChange() { stopRunning(); loadProgram(dom.programSelect.value); }
 
-    function onClearLog() {
-        clearLog();
-        addLogEntry('info', 'Log cleared.');
-    }
+    function onClearLog() { clearLog(); addLogEntry('info', 'Log cleared.'); }
 
     function onToggleConcept() {
-        const content = dom.conceptContent;
-        const btn = dom.toggleConceptBtn;
-        if (content.style.display === 'none') {
-            content.style.display = '';
-            btn.textContent = '▼';
-        } else {
-            content.style.display = 'none';
-            btn.textContent = '▶';
-        }
+        const bar = dom.conceptBar;
+        bar.style.display = bar.style.display === 'none' ? '' : 'none';
     }
 
     init();
