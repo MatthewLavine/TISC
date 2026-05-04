@@ -1,27 +1,28 @@
 /* ============================================================
-   TISC — CPU Engine (Iteration 2)
+   TISC — CPU Engine (Iteration 3)
    
-   This file implements the core CPU simulation.
+   KEY CONCEPTS (New in Iteration 3):
    
-   KEY CONCEPTS (New in Iteration 2):
-   
-   4. THE ALU (Arithmetic Logic Unit):
-      The ALU is the CPU's calculator. It's a physical circuit
-      that takes two inputs and produces one output plus "flags"
-      that describe the result. Every math and logic operation
-      goes through the ALU.
+   6. RAM (Random Access Memory):
+      Registers are fast but tiny (we only have 4). RAM gives the
+      CPU a much larger workspace — 256 bytes in our case.
       
-   5. FLAGS REGISTER:
-      After every ALU operation, the CPU sets special single-bit
-      "flags" that describe the result:
+      Unlike registers, RAM is accessed by ADDRESS. Think of it
+      like a row of numbered mailboxes: to read or write data,
+      you specify which mailbox number (address) you want.
       
-      - Zero (Z): Was the result exactly 0?
-      - Negative (N): Was the result negative? (top bit = 1)
-      - Carry (C): Did the operation overflow past 8 bits?
+   7. LOAD and STORE:
+      Two new instructions connect registers to RAM:
       
-      These flags are CRITICAL — in Iteration 4, we'll use them
-      to make decisions (if/else) and loops. Without flags, a CPU
-      can only run straight-line code.
+      - STORE reg, addr: Copy a register's value INTO RAM
+        (register → memory). Like putting a letter in a mailbox.
+      
+      - LOAD reg, addr: Copy a value FROM RAM into a register
+        (memory → register). Like checking your mailbox.
+      
+      This register↔memory dance is fundamental to ALL computing.
+      Programs use registers for active computation and RAM for
+      longer-term storage of data.
    ============================================================ */
 
 const Opcode = Object.freeze({
@@ -31,21 +32,23 @@ const Opcode = Object.freeze({
     HALT: 'HALT',
 
     // --- Iteration 2: ALU operations ---
-    /** Subtract: dest = dest - src */
     SUB: 'SUB',
-    /** Bitwise AND: dest = dest & src (keeps only bits that are 1 in BOTH) */
     AND: 'AND',
-    /** Bitwise OR: dest = dest | src (keeps bits that are 1 in EITHER) */
     OR: 'OR',
-    /** Bitwise XOR: dest = dest ^ src (keeps bits that differ) */
     XOR: 'XOR',
-    /** Bitwise NOT: dest = ~dest (flips every bit) */
     NOT: 'NOT',
-    /** Shift Left: dest = dest << 1 (multiply by 2) */
     SHL: 'SHL',
-    /** Shift Right: dest = dest >> 1 (divide by 2) */
     SHR: 'SHR',
+
+    // --- Iteration 3: Memory access ---
+    /** Store register to RAM: memory[addr] = reg */
+    STORE: 'STORE',
+    /** Load from RAM to register: reg = memory[addr] */
+    LOAD: 'LOAD',
 });
+
+/** RAM size in bytes. 256 = one byte can address the whole space (0x00–0xFF). */
+const RAM_SIZE = 256;
 
 const Register = Object.freeze({
     PC: 'PC',
@@ -173,6 +176,66 @@ const PROGRAMS = {
             makeInstruction(Opcode.HALT),
         ],
     },
+
+    // --- Iteration 3: Memory programs ---
+    'store-and-load': {
+        name: 'Store & Load',
+        description: 'Stores values to RAM addresses, then loads them back into different registers. Watch the RAM panel light up as values move between CPU and memory!',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 42),       // R0 = 42
+            makeInstruction(Opcode.STORE, Register.R0, 0x10),        // RAM[0x10] = 42
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 99),       // R0 = 99
+            makeInstruction(Opcode.STORE, Register.R0, 0x11),        // RAM[0x11] = 99
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),        // R0 = 0 (clear it)
+            makeInstruction(Opcode.LOAD, Register.R1, 0x10),         // R1 = RAM[0x10] = 42
+            makeInstruction(Opcode.LOAD, Register.R2, 0x11),         // R2 = RAM[0x11] = 99
+            makeInstruction(Opcode.ADD, Register.R1, Register.R2),   // R1 = 42 + 99 = 141
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'memory-array': {
+        name: 'Memory Array',
+        description: 'Stores a sequence of values to consecutive RAM addresses (like an array). Then loads two of them back and adds them. Shows how programs organize data in memory.',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 10),
+            makeInstruction(Opcode.STORE, Register.R0, 0x20),        // array[0] = 10
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 20),
+            makeInstruction(Opcode.STORE, Register.R0, 0x21),        // array[1] = 20
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 30),
+            makeInstruction(Opcode.STORE, Register.R0, 0x22),        // array[2] = 30
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 40),
+            makeInstruction(Opcode.STORE, Register.R0, 0x23),        // array[3] = 40
+            makeInstruction(Opcode.LOAD, Register.R0, 0x20),         // R0 = array[0] = 10
+            makeInstruction(Opcode.LOAD, Register.R1, 0x23),         // R1 = array[3] = 40
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 10 + 40 = 50
+            makeInstruction(Opcode.STORE, Register.R0, 0x24),        // array[4] = 50 (sum)
+            makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'register-spill': {
+        name: 'Register Spill',
+        description: 'When you run out of registers, you "spill" values to RAM temporarily. Computes (1+2) + (3+4) + (5+6) using only 2 registers by saving intermediate results to memory.',
+        instructions: [
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 1),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 2),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 3
+            makeInstruction(Opcode.STORE, Register.R0, 0x30),        // spill: RAM[0x30] = 3
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 3),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 4),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 7
+            makeInstruction(Opcode.STORE, Register.R0, 0x31),        // spill: RAM[0x31] = 7
+            makeInstruction(Opcode.LOAD_IMM, Register.R0, 5),
+            makeInstruction(Opcode.LOAD_IMM, Register.R1, 6),
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 11
+            makeInstruction(Opcode.LOAD, Register.R1, 0x30),         // reload: R1 = 3
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 14
+            makeInstruction(Opcode.LOAD, Register.R1, 0x31),         // reload: R1 = 7
+            makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 21
+            makeInstruction(Opcode.HALT),
+        ],
+    },
 };
 
 class CPU {
@@ -185,14 +248,24 @@ class CPU {
             [Register.R3]: 0,
         };
 
-        /**
-         * The FLAGS register — NEW in Iteration 2.
-         * 
-         * After every ALU operation, these flags are automatically
-         * updated to describe the result. They're like indicator
-         * lights on the ALU's output.
-         */
         this.flags = makeFlags();
+
+        /**
+         * RAM — NEW in Iteration 3.
+         * 
+         * 256 bytes of Random Access Memory. Each byte is
+         * addressable by a number from 0x00 to 0xFF.
+         * 
+         * In a real computer, RAM is a separate chip connected
+         * to the CPU via a "bus" (a bundle of wires). Accessing
+         * RAM is much slower than accessing registers — often
+         * 100x slower on modern CPUs. That speed difference is
+         * why we have registers at all.
+         */
+        this.ram = new Uint8Array(RAM_SIZE);
+
+        /** Track which RAM addresses changed this cycle (for UI) */
+        this.ramChanges = [];
 
         this.program = [];
         this.halted = false;
@@ -209,8 +282,33 @@ class CPU {
             this.registers[reg] = 0;
         }
         this.flags = makeFlags();
+        this.ram.fill(0);
+        this.ramChanges = [];
         this.halted = false;
         this.cycleCount = 0;
+    }
+
+    /**
+     * Read a byte from RAM.
+     * 
+     * In a real CPU, this triggers a "memory read" on the bus:
+     * 1. CPU puts the address on the address bus
+     * 2. CPU signals "read" on the control bus
+     * 3. RAM chip responds with the data on the data bus
+     * This takes multiple clock cycles on real hardware.
+     */
+    readMemory(address) {
+        return this.ram[address & 0xFF];
+    }
+
+    /**
+     * Write a byte to RAM.
+     * Same bus protocol as read, but CPU drives the data bus.
+     */
+    writeMemory(address, value) {
+        const addr = address & 0xFF;
+        this.ram[addr] = value & 0xFF;
+        this.ramChanges.push(addr);
     }
 
     getRegister(reg) {
@@ -339,6 +437,24 @@ class CPU {
                     destReg: operands[0],
                 };
 
+            case Opcode.STORE:
+                return {
+                    opcode,
+                    description: `Store ${operands[0]} to RAM address 0x${operands[1].toString(16).toUpperCase().padStart(2,'0')}`,
+                    assembly: `STORE ${operands[0]}, 0x${operands[1].toString(16).toUpperCase().padStart(2,'0')}`,
+                    srcReg: operands[0],
+                    address: operands[1],
+                };
+
+            case Opcode.LOAD:
+                return {
+                    opcode,
+                    description: `Load from RAM address 0x${operands[1].toString(16).toUpperCase().padStart(2,'0')} into ${operands[0]}`,
+                    assembly: `LOAD ${operands[0]}, 0x${operands[1].toString(16).toUpperCase().padStart(2,'0')}`,
+                    destReg: operands[0],
+                    address: operands[1],
+                };
+
             case Opcode.HALT:
                 return {
                     opcode,
@@ -356,9 +472,11 @@ class CPU {
     }
 
     execute(decoded) {
+        this.ramChanges = [];
         const result = {
             changedRegisters: [],
             flagsChanged: false,
+            memoryChanged: false,
             details: '',
         };
 
@@ -477,6 +595,24 @@ class CPU {
                 break;
             }
 
+            case Opcode.STORE: {
+                const { srcReg, address } = decoded;
+                const value = this.registers[srcReg];
+                this.writeMemory(address, value);
+                result.memoryChanged = true;
+                result.details = `RAM[0x${(address & 0xFF).toString(16).toUpperCase().padStart(2,'0')}] ← ${srcReg} (${value})`;
+                break;
+            }
+
+            case Opcode.LOAD: {
+                const { destReg, address } = decoded;
+                const value = this.readMemory(address);
+                this.registers[destReg] = value;
+                result.changedRegisters.push(destReg);
+                result.details = `${destReg} ← RAM[0x${(address & 0xFF).toString(16).toUpperCase().padStart(2,'0')}] (${value})`;
+                break;
+            }
+
             case Opcode.HALT: {
                 this.halted = true;
                 result.details = 'CPU halted';
@@ -531,4 +667,5 @@ window.CPU = CPU;
 window.Opcode = Opcode;
 window.Register = Register;
 window.PROGRAMS = PROGRAMS;
+window.RAM_SIZE = RAM_SIZE;
 window.makeInstruction = makeInstruction;

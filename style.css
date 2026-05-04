@@ -595,6 +595,160 @@ body::before {
     background: var(--bg-panel);
 }
 
+/* --- Memory Concept Diagram --- */
+.memory-concept-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.mem-concept-cpu, .mem-concept-ram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border-color);
+    min-width: 120px;
+}
+
+.mem-concept-cpu {
+    border-color: var(--accent-cyan);
+    background: var(--accent-cyan-dim);
+}
+
+.mem-concept-ram {
+    border-color: var(--accent-amber);
+    background: var(--accent-amber-dim);
+}
+
+.mem-concept-label {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-bright);
+}
+
+.mem-concept-regs, .mem-concept-cells {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.mem-concept-bus {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.mem-concept-arrow {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--accent-green);
+}
+
+.mem-concept-wire {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-amber));
+    border-radius: 2px;
+}
+
+/* --- RAM Viewer --- */
+.ram-viewer {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+}
+
+.ram-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: var(--space-md);
+    font-style: italic;
+}
+
+.ram-grid {
+    display: grid;
+    grid-template-columns: auto repeat(16, 1fr);
+    gap: 1px;
+    background: rgba(42, 54, 84, 0.3);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.ram-header {
+    background: var(--bg-panel-header);
+    color: var(--text-muted);
+    padding: 3px 4px;
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 600;
+}
+
+.ram-row-label {
+    background: var(--bg-panel-header);
+    color: var(--text-muted);
+    padding: 3px 6px;
+    text-align: right;
+    font-size: 0.62rem;
+    font-weight: 500;
+}
+
+.ram-cell {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    padding: 3px 2px;
+    text-align: center;
+    font-size: 0.65rem;
+    transition: all var(--transition-fast);
+    min-width: 26px;
+}
+
+.ram-cell.has-value {
+    color: var(--accent-amber);
+    font-weight: 600;
+}
+
+.ram-cell.just-changed {
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
+    font-weight: 700;
+    box-shadow: inset 0 0 8px rgba(52, 211, 153, 0.2);
+    animation: ram-cell-flash 0.6s ease;
+}
+
+.ram-cell.just-read {
+    background: var(--accent-cyan-dim);
+    color: var(--accent-cyan);
+    font-weight: 700;
+    animation: ram-cell-flash 0.6s ease;
+}
+
+@keyframes ram-cell-flash {
+    0% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Memory log entries */
+.log-memory {
+    border-left-color: var(--accent-amber);
+    background: rgba(251, 191, 36, 0.05);
+}
+
+.log-memory .log-badge {
+    background: var(--accent-amber-dim);
+    color: var(--accent-amber);
+}
+
 /* --- Controls --- */
 .controls-row {
     display: flex;

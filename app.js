@@ -1,10 +1,10 @@
 /* ============================================================
-   TISC — App Controller (Iteration 2)
+   TISC — App Controller (Iteration 3)
    
-   Connects the CPU engine to the UI. Now includes:
-   - Flags register display (Z, N, C LED indicators)
-   - ALU diagram that shows inputs → operation → result
-   - Extended hex encoding for new ALU instructions
+   Now includes:
+   - RAM viewer showing a hex grid of memory contents
+   - Visual highlighting of memory reads (cyan) and writes (green)
+   - Flags panel with LED indicators
    ============================================================ */
 
 (function () {
@@ -33,16 +33,6 @@
         flagN: document.getElementById('flag-n'),
         flagC: document.getElementById('flag-c'),
 
-        // ALU diagram
-        aluValA: document.getElementById('alu-val-a'),
-        aluValB: document.getElementById('alu-val-b'),
-        aluValResult: document.getElementById('alu-val-result'),
-        aluOp: document.getElementById('alu-op'),
-        aluBody: document.getElementById('alu-body'),
-        aluFlagZ: document.getElementById('alu-flag-z'),
-        aluFlagN: document.getElementById('alu-flag-n'),
-        aluFlagC: document.getElementById('alu-flag-c'),
-
         // Controls
         stepBtn: document.getElementById('step-btn'),
         runBtn: document.getElementById('run-btn'),
@@ -58,6 +48,9 @@
 
         // Memory
         memoryTbody: document.getElementById('memory-tbody'),
+
+        // RAM
+        ramViewer: document.getElementById('ram-viewer'),
 
         // Log
         logEntries: document.getElementById('log-entries'),
@@ -83,17 +76,6 @@
         [Register.R2]: dom.regR2Container,
         [Register.R3]: dom.regR3Container,
     };
-
-    // --- ALU operation symbols for display ---
-    const ALU_OP_SYMBOLS = {
-        ADD: '+', SUB: '−', AND: '&', OR: '|',
-        XOR: '^', NOT: '~', SHL: '<<', SHR: '>>',
-    };
-
-    // --- Is this opcode an ALU operation? ---
-    function isAluOp(opcode) {
-        return opcode in ALU_OP_SYMBOLS;
-    }
 
     function init() {
         loadProgram(currentProgramId);
@@ -141,7 +123,6 @@
         clearLog();
         addLogEntry('info', `Loaded program: <strong>${program.name}</strong>`);
         addLogEntry('info', 'Press <strong>Step</strong> or <strong>Run</strong> to begin.');
-        resetAluDiagram();
         updateUI();
     }
 
@@ -179,6 +160,7 @@
             'LOAD_IMM': 0x01, 'ADD': 0x02, 'SUB': 0x03,
             'AND': 0x04, 'OR': 0x05, 'XOR': 0x06,
             'NOT': 0x07, 'SHL': 0x08, 'SHR': 0x09,
+            'STORE': 0x0A, 'LOAD': 0x0B,
             'HALT': 0xFF,
         };
         const regMap = { 'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3 };
@@ -198,6 +180,11 @@
             case 'NOT': case 'SHL': case 'SHR': {
                 const dest = regMap[instr.operands[0]] || 0;
                 return `${formatHex(opByte)} ${formatHex(dest)}`;
+            }
+            case 'STORE': case 'LOAD': {
+                const reg = regMap[instr.operands[0]] || 0;
+                const addr = instr.operands[1] & 0xFF;
+                return `${formatHex(opByte)} ${formatHex(reg)} ${formatHex(addr)}`;
             }
             case 'HALT':
                 return `${formatHex(opByte)}`;
@@ -236,17 +223,73 @@
         });
     }
 
+    // --- RAM Viewer ---
+    /**
+     * Render the RAM hex grid. Shows rows that contain non-zero
+     * values, organized as a 16-column hex dump (like a hex editor).
+     */
+    function renderRamViewer(changedAddresses, readAddresses) {
+        // Find which rows (groups of 16) have data
+        const activeRows = new Set();
+        for (let i = 0; i < RAM_SIZE; i++) {
+            if (cpu.ram[i] !== 0) {
+                activeRows.add(Math.floor(i / 16));
+            }
+        }
+        // Also include rows with recent changes/reads
+        (changedAddresses || []).forEach(a => activeRows.add(Math.floor(a / 16)));
+        (readAddresses || []).forEach(a => activeRows.add(Math.floor(a / 16)));
+
+        if (activeRows.size === 0) {
+            dom.ramViewer.innerHTML = '<div class="ram-empty">RAM is empty. Use STORE to write data.</div>';
+            return;
+        }
+
+        const sortedRows = [...activeRows].sort((a, b) => a - b);
+
+        let html = '<div class="ram-grid">';
+
+        // Header row
+        html += '<div class="ram-header"></div>';
+        for (let col = 0; col < 16; col++) {
+            html += `<div class="ram-header">x${col.toString(16).toUpperCase()}</div>`;
+        }
+
+        // Data rows
+        for (const rowIdx of sortedRows) {
+            const baseAddr = rowIdx * 16;
+            html += `<div class="ram-row-label">${formatHex(baseAddr, 2)}</div>`;
+
+            for (let col = 0; col < 16; col++) {
+                const addr = baseAddr + col;
+                const val = cpu.ram[addr];
+                const isChanged = (changedAddresses || []).includes(addr);
+                const isRead = (readAddresses || []).includes(addr);
+                const hasValue = val !== 0;
+
+                let cellClass = 'ram-cell';
+                if (isChanged) cellClass += ' just-changed';
+                else if (isRead) cellClass += ' just-read';
+                else if (hasValue) cellClass += ' has-value';
+
+                const displayVal = val.toString(16).toUpperCase().padStart(2, '0');
+                html += `<div class="${cellClass}" title="0x${formatHex(addr, 2).slice(2)}: ${val}">${displayVal}</div>`;
+            }
+        }
+
+        html += '</div>';
+        dom.ramViewer.innerHTML = html;
+    }
+
     // --- UI Updates ---
     function updateUI() {
-        // Update register values
         for (const [reg, el] of Object.entries(regValueElements)) {
             el.textContent = cpu.getRegister(reg);
         }
 
-        // Update flags
         updateFlagsUI();
+        renderRamViewer(cpu.ramChanges);
 
-        // Update status
         if (cpu.halted) {
             dom.statusDot.className = 'status-dot halted';
             dom.statusLabel.textContent = 'Halted';
@@ -277,60 +320,6 @@
         dom.flagC.classList.toggle('active', cpu.flags.C);
     }
 
-    /**
-     * Update the ALU diagram to show what the ALU just computed.
-     */
-    function updateAluDiagram(decoded, stepResult) {
-        if (!isAluOp(decoded.opcode)) {
-            return; // Non-ALU ops don't touch the ALU diagram
-        }
-
-        const opSymbol = ALU_OP_SYMBOLS[decoded.opcode] || '?';
-        dom.aluOp.textContent = opSymbol;
-        dom.aluBody.classList.add('active');
-
-        // Get the operand values from BEFORE execution
-        // (stepResult.result.details has the "A op B = result" string)
-        if (decoded.destReg && decoded.srcReg) {
-            // Two-operand: show both inputs
-            const parts = stepResult.result.details.match(/(\d+)\s+\S+\s+(\d+)\s*=\s*(\d+)/);
-            if (parts) {
-                dom.aluValA.textContent = parts[1];
-                dom.aluValB.textContent = parts[2];
-                dom.aluValResult.textContent = parts[3];
-            }
-        } else if (decoded.destReg) {
-            // Single-operand (NOT, SHL, SHR)
-            const parts = stepResult.result.details.match(/(\S+)\s+(\d+)\s*=\s*(\d+)/);
-            if (parts) {
-                dom.aluValA.textContent = parts[2];
-                dom.aluValB.textContent = '—';
-                dom.aluValResult.textContent = parts[3];
-            }
-        }
-
-        // Update mini-flag indicators in ALU diagram
-        dom.aluFlagZ.classList.toggle('active', cpu.flags.Z);
-        dom.aluFlagN.classList.toggle('active', cpu.flags.N);
-        dom.aluFlagC.classList.toggle('active', cpu.flags.C);
-
-        // Clear active state after a delay
-        setTimeout(() => {
-            dom.aluBody.classList.remove('active');
-        }, 800);
-    }
-
-    function resetAluDiagram() {
-        if (dom.aluValA) dom.aluValA.textContent = '—';
-        if (dom.aluValB) dom.aluValB.textContent = '—';
-        if (dom.aluValResult) dom.aluValResult.textContent = '—';
-        if (dom.aluOp) dom.aluOp.textContent = 'ALU';
-        if (dom.aluBody) dom.aluBody.classList.remove('active');
-        if (dom.aluFlagZ) dom.aluFlagZ.classList.remove('active');
-        if (dom.aluFlagN) dom.aluFlagN.classList.remove('active');
-        if (dom.aluFlagC) dom.aluFlagC.classList.remove('active');
-    }
-
     function flashRegisters(changedRegs) {
         for (const reg of changedRegs) {
             const container = regContainerElements[reg];
@@ -357,9 +346,6 @@
         dom.logEntries.innerHTML = '';
     }
 
-    /**
-     * Build a flags summary string for the log.
-     */
     function flagsSummary() {
         const parts = [];
         if (cpu.flags.Z) parts.push('Z=1');
@@ -398,12 +384,15 @@
                     flashRegisters(stepResult.result.changedRegisters || []);
                 } else if (stepResult.status === 'ok') {
                     let logMsg = `<strong>Execute</strong>: ${stepResult.result.details}`;
-                    if (stepResult.result.flagsChanged) {
-                        logMsg += flagsSummary();
-                    }
-                    addLogEntry('execute', logMsg);
+                    if (stepResult.result.flagsChanged) logMsg += flagsSummary();
+                    const logType = stepResult.result.memoryChanged ? 'memory' : 'execute';
+                    addLogEntry(logType, logMsg);
                     flashRegisters(stepResult.result.changedRegisters);
-                    updateAluDiagram(decoded, stepResult);
+
+                    // For LOAD instructions, highlight the read address
+                    if (decoded.opcode === 'LOAD') {
+                        renderRamViewer([], [decoded.address & 0xFF]);
+                    }
                 } else {
                     addLogEntry('halt', stepResult.message);
                 }
@@ -415,11 +404,7 @@
 
     function onToggleRun() {
         if (cpu.halted) return;
-        if (isRunning) {
-            stopRunning();
-        } else {
-            startRunning();
-        }
+        if (isRunning) { stopRunning(); } else { startRunning(); }
         updateUI();
     }
 
@@ -440,10 +425,7 @@
         updateUI();
     }
 
-    function onReset() {
-        stopRunning();
-        loadProgram(currentProgramId);
-    }
+    function onReset() { stopRunning(); loadProgram(currentProgramId); }
 
     function onSpeedChange() {
         const speed = parseInt(dom.speedSlider.value);
@@ -452,9 +434,8 @@
     }
 
     function onProgramChange() {
-        const programId = dom.programSelect.value;
         stopRunning();
-        loadProgram(programId);
+        loadProgram(dom.programSelect.value);
     }
 
     function onClearLog() {

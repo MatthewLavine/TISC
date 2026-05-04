@@ -20,7 +20,7 @@
             <span class="subtitle">Toy Instruction Set Computer</span>
         </div>
         <div class="header-right">
-            <span class="iteration-badge">Iteration 2: ALU & Flags</span>
+            <span class="iteration-badge">Iteration 3: Memory (RAM)</span>
         </div>
     </header>
 
@@ -32,34 +32,23 @@
                 <button id="toggle-concept-btn" class="icon-btn" aria-label="Toggle concept panel">▼</button>
             </div>
             <div id="concept-content" class="panel-body">
-                <p>The <strong>ALU (Arithmetic Logic Unit)</strong> is the CPU's calculator. Every math and logic operation flows through it:</p>
-                <div class="alu-diagram">
-                    <div class="alu-inputs">
-                        <div class="alu-input" id="alu-input-a">
-                            <span class="alu-io-label">Input A</span>
-                            <span class="alu-io-value" id="alu-val-a">—</span>
-                        </div>
-                        <div class="alu-input" id="alu-input-b">
-                            <span class="alu-io-label">Input B</span>
-                            <span class="alu-io-value" id="alu-val-b">—</span>
-                        </div>
+                <p>Registers are fast but tiny (we only have 4). <strong>RAM</strong> gives the CPU a much larger workspace — 256 bytes, each with its own <strong>address</strong>.</p>
+                <div class="memory-concept-diagram">
+                    <div class="mem-concept-cpu">
+                        <div class="mem-concept-label">CPU</div>
+                        <div class="mem-concept-regs">R0 R1 R2 R3</div>
                     </div>
-                    <div class="alu-body" id="alu-body">
-                        <div class="alu-op" id="alu-op">ALU</div>
+                    <div class="mem-concept-bus">
+                        <div class="mem-concept-arrow">← LOAD</div>
+                        <div class="mem-concept-wire"></div>
+                        <div class="mem-concept-arrow">STORE →</div>
                     </div>
-                    <div class="alu-outputs">
-                        <div class="alu-output">
-                            <span class="alu-io-label">Result</span>
-                            <span class="alu-io-value" id="alu-val-result">—</span>
-                        </div>
-                        <div class="alu-flags-out">
-                            <span class="alu-flag-mini" id="alu-flag-z">Z</span>
-                            <span class="alu-flag-mini" id="alu-flag-n">N</span>
-                            <span class="alu-flag-mini" id="alu-flag-c">C</span>
-                        </div>
+                    <div class="mem-concept-ram">
+                        <div class="mem-concept-label">RAM</div>
+                        <div class="mem-concept-cells">256 bytes</div>
                     </div>
                 </div>
-                <p class="concept-note">After every ALU operation, <strong>flags</strong> update automatically: <strong>Z</strong>ero (result = 0), <strong>N</strong>egative (top bit set), <strong>C</strong>arry (overflow). These flags will power decisions and loops in later iterations.</p>
+                <p class="concept-note"><strong>STORE</strong> copies a register's value into a RAM address. <strong>LOAD</strong> copies a value from RAM into a register. This register↔memory dance is how all programs manage data.</p>
             </div>
         </section>
 
@@ -181,6 +170,11 @@
                                 <option value="xor-swap">XOR Swap Trick</option>
                                 <option value="not-complement">NOT (Bitwise Complement)</option>
                             </optgroup>
+                            <optgroup label="Memory">
+                                <option value="store-and-load">Store & Load</option>
+                                <option value="memory-array">Memory Array</option>
+                                <option value="register-spill">Register Spill</option>
+                            </optgroup>
                         </select>
                         <p id="program-description" class="program-desc"></p>
                     </div>
@@ -209,6 +203,19 @@
                                     <!-- Populated by JS -->
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RAM Viewer -->
+                <section id="ram-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>💾 RAM</h2>
+                        <span class="panel-hint">256 bytes of data memory (showing non-zero)</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="ram-viewer" class="ram-viewer">
+                            <div class="ram-empty">RAM is empty. Use STORE to write data.</div>
                         </div>
                     </div>
                 </section>
