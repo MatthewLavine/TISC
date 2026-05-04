@@ -183,12 +183,12 @@ const PROGRAMS = {
         description: 'Stores values to RAM addresses, then loads them back into different registers. Watch the RAM panel light up as values move between CPU and memory!',
         instructions: [
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 42),       // R0 = 42
-            makeInstruction(Opcode.STORE, Register.R0, 0x10),        // RAM[0x10] = 42
+            makeInstruction(Opcode.STORE, Register.R0, 0x00),        // RAM[0x00] = 42
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 99),       // R0 = 99
-            makeInstruction(Opcode.STORE, Register.R0, 0x11),        // RAM[0x11] = 99
+            makeInstruction(Opcode.STORE, Register.R0, 0x01),        // RAM[0x01] = 99
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),        // R0 = 0 (clear it)
-            makeInstruction(Opcode.LOAD, Register.R1, 0x10),         // R1 = RAM[0x10] = 42
-            makeInstruction(Opcode.LOAD, Register.R2, 0x11),         // R2 = RAM[0x11] = 99
+            makeInstruction(Opcode.LOAD, Register.R1, 0x00),         // R1 = RAM[0x00] = 42
+            makeInstruction(Opcode.LOAD, Register.R2, 0x01),         // R2 = RAM[0x01] = 99
             makeInstruction(Opcode.ADD, Register.R1, Register.R2),   // R1 = 42 + 99 = 141
             makeInstruction(Opcode.HALT),
         ],
@@ -199,17 +199,17 @@ const PROGRAMS = {
         description: 'Stores a sequence of values to consecutive RAM addresses (like an array). Then loads two of them back and adds them. Shows how programs organize data in memory.',
         instructions: [
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 10),
-            makeInstruction(Opcode.STORE, Register.R0, 0x20),        // array[0] = 10
+            makeInstruction(Opcode.STORE, Register.R0, 0x00),        // array[0] = 10
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 20),
-            makeInstruction(Opcode.STORE, Register.R0, 0x21),        // array[1] = 20
+            makeInstruction(Opcode.STORE, Register.R0, 0x01),        // array[1] = 20
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 30),
-            makeInstruction(Opcode.STORE, Register.R0, 0x22),        // array[2] = 30
+            makeInstruction(Opcode.STORE, Register.R0, 0x02),        // array[2] = 30
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 40),
-            makeInstruction(Opcode.STORE, Register.R0, 0x23),        // array[3] = 40
-            makeInstruction(Opcode.LOAD, Register.R0, 0x20),         // R0 = array[0] = 10
-            makeInstruction(Opcode.LOAD, Register.R1, 0x23),         // R1 = array[3] = 40
+            makeInstruction(Opcode.STORE, Register.R0, 0x03),        // array[3] = 40
+            makeInstruction(Opcode.LOAD, Register.R0, 0x00),         // R0 = array[0] = 10
+            makeInstruction(Opcode.LOAD, Register.R1, 0x03),         // R1 = array[3] = 40
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 10 + 40 = 50
-            makeInstruction(Opcode.STORE, Register.R0, 0x24),        // array[4] = 50 (sum)
+            makeInstruction(Opcode.STORE, Register.R0, 0x04),        // array[4] = 50 (sum)
             makeInstruction(Opcode.HALT),
         ],
     },
@@ -221,17 +221,17 @@ const PROGRAMS = {
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 1),
             makeInstruction(Opcode.LOAD_IMM, Register.R1, 2),
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 3
-            makeInstruction(Opcode.STORE, Register.R0, 0x30),        // spill: RAM[0x30] = 3
+            makeInstruction(Opcode.STORE, Register.R0, 0x00),        // spill: RAM[0x00] = 3
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 3),
             makeInstruction(Opcode.LOAD_IMM, Register.R1, 4),
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 7
-            makeInstruction(Opcode.STORE, Register.R0, 0x31),        // spill: RAM[0x31] = 7
+            makeInstruction(Opcode.STORE, Register.R0, 0x01),        // spill: RAM[0x01] = 7
             makeInstruction(Opcode.LOAD_IMM, Register.R0, 5),
             makeInstruction(Opcode.LOAD_IMM, Register.R1, 6),
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 11
-            makeInstruction(Opcode.LOAD, Register.R1, 0x30),         // reload: R1 = 3
+            makeInstruction(Opcode.LOAD, Register.R1, 0x00),         // reload: R1 = 3
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 14
-            makeInstruction(Opcode.LOAD, Register.R1, 0x31),         // reload: R1 = 7
+            makeInstruction(Opcode.LOAD, Register.R1, 0x01),         // reload: R1 = 7
             makeInstruction(Opcode.ADD, Register.R0, Register.R1),   // R0 = 21
             makeInstruction(Opcode.HALT),
         ],

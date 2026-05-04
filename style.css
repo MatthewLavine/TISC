@@ -676,9 +676,13 @@ body::before {
     vertical-align: middle;
 }
 
-.ram-addr { color: var(--accent-amber); font-weight: 600; }
-.ram-val-dec { color: var(--text-bright); font-weight: 600; }
-.ram-val-hex { color: var(--accent-purple); }
+.ram-addr { color: var(--text-muted); font-weight: 500; font-size: 0.7rem; }
+.ram-val-dec { color: var(--text-muted); }
+.ram-val-hex { color: var(--text-muted); }
+
+.ram-row-has-value .ram-addr { color: var(--accent-amber); font-weight: 600; }
+.ram-row-has-value .ram-val-dec { color: var(--text-bright); font-weight: 600; }
+.ram-row-has-value .ram-val-hex { color: var(--accent-purple); }
 .ram-action { text-align: right; }
 
 .ram-badge {

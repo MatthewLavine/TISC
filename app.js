@@ -188,25 +188,12 @@
 
     // --- RAM Viewer ---
     function renderRamViewer(changedAddresses, readAddresses) {
-        const entries = [];
-        for (let i = 0; i < RAM_SIZE; i++) {
-            if (cpu.ram[i] !== 0) entries.push(i);
-        }
-        (changedAddresses || []).forEach(a => { if (!entries.includes(a)) entries.push(a); });
-        (readAddresses || []).forEach(a => { if (!entries.includes(a)) entries.push(a); });
-        entries.sort((a, b) => a - b);
-
-        if (entries.length === 0) {
-            dom.ramViewer.innerHTML = '<div class="ram-empty">RAM is empty. Use STORE to write data.</div>';
-            return;
-        }
-
         let html = '<table class="ram-table">';
         html += '<colgroup><col class="col-ram-addr"><col class="col-ram-dec"><col class="col-ram-hex"><col class="col-ram-action"></colgroup>';
         html += '<thead><tr><th>Address</th><th>Dec</th><th>Hex</th><th></th></tr></thead>';
         html += '<tbody>';
 
-        for (const addr of entries) {
+        for (let addr = 0; addr < RAM_SIZE; addr++) {
             const val = cpu.ram[addr];
             const isChanged = (changedAddresses || []).includes(addr);
             const isRead = (readAddresses || []).includes(addr);
@@ -220,6 +207,7 @@
                 rowClass += ' ram-row-read';
                 badge = '<span class="ram-badge ram-badge-read">READ</span>';
             }
+            if (val !== 0) rowClass += ' ram-row-has-value';
 
             html += `<tr class="${rowClass}">`;
             html += `<td class="ram-addr">${formatHex(addr, 2)}</td>`;
