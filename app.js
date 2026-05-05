@@ -40,7 +40,9 @@
         programDescription: document.getElementById('program-description'),
 
         memoryTbody: document.getElementById('memory-tbody'),
-        ramViewer: document.getElementById('ram-viewer'),
+        ramViewerData: document.getElementById('ram-viewer-data'),
+        ramViewerStack: document.getElementById('ram-viewer-stack'),
+        ramStackPane: document.getElementById('ram-stack-pane'), // to auto-scroll
 
         logEntries: document.getElementById('log-entries'),
         clearLogBtn: document.getElementById('clear-log-btn'),
@@ -106,6 +108,8 @@
         renderMemoryTable();
         clearLog();
         addLogEntry('info', `Loaded: <strong>${program.name}</strong> — ${program.description}`);
+        
+        dom.ramViewerStack.hasScrolled = false;
         updateUI();
     }
 
@@ -201,13 +205,13 @@
     }
 
     // --- RAM Viewer ---
-    function renderRamViewer(changedAddresses, readAddresses) {
+    function renderRamPane(startAddr, endAddr, changedAddresses, readAddresses) {
         let html = '<table class="ram-table">';
         html += '<colgroup><col class="col-ram-addr"><col class="col-ram-dec"><col class="col-ram-hex"><col class="col-ram-action"></colgroup>';
         html += '<thead><tr><th>Address</th><th>Dec</th><th>Hex</th><th></th></tr></thead>';
         html += '<tbody>';
 
-        for (let addr = 0; addr < RAM_SIZE; addr++) {
+        for (let addr = startAddr; addr <= endAddr; addr++) {
             const val = cpu.ram[addr];
             const isChanged = (changedAddresses || []).includes(addr);
             const isRead = (readAddresses || []).includes(addr);
@@ -232,7 +236,20 @@
         }
 
         html += '</tbody></table>';
-        dom.ramViewer.innerHTML = html;
+        return html;
+    }
+
+    function renderRamViewer(changedAddresses, readAddresses) {
+        dom.ramViewerData.innerHTML = renderRamPane(0x00, 0x7F, changedAddresses, readAddresses);
+        dom.ramViewerStack.innerHTML = renderRamPane(0x80, 0xFF, changedAddresses, readAddresses);
+
+        // Auto-scroll the stack pane to the bottom on load so 0xFF is immediately visible
+        if (!dom.ramViewerStack.hasScrolled) {
+            setTimeout(() => {
+                dom.ramStackPane.scrollTop = dom.ramStackPane.scrollHeight;
+            }, 10); // Wait a tiny bit for the browser to recalculate layouts
+            dom.ramViewerStack.hasScrolled = true;
+        }
     }
 
     // --- UI Updates ---

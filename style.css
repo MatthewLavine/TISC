@@ -639,6 +639,29 @@ body::before {
     font-style: italic;
 }
 
+.ram-split-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.ram-pane {
+    flex: 1;
+    min-height: 0;
+    /* Hide scrollbar by default, but it's applied via panel-scroll */
+}
+
+.ram-divider {
+    text-align: center;
+    background: var(--bg-panel-header);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding: 4px 0;
+    border-top: 1px dashed var(--border-color);
+    border-bottom: 1px dashed var(--border-color);
+    flex-shrink: 0;
+}
+
 .ram-table {
     width: 100%;
     border-collapse: collapse;

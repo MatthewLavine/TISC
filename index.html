@@ -176,9 +176,15 @@
                 <div class="panel-header">
                     <h2>💾 RAM</h2>
                 </div>
-                <div class="panel-body panel-scroll">
-                    <div id="ram-viewer" class="ram-viewer">
-                        <div class="ram-empty">RAM is empty. Use STORE to write data.</div>
+                <div class="panel-body ram-split-panel">
+                    <div class="ram-pane panel-scroll" id="ram-data-pane">
+                        <div id="ram-viewer-data" class="ram-viewer"></div>
+                    </div>
+                    <div class="ram-divider">
+                        <span>... Unused Memory ...</span>
+                    </div>
+                    <div class="ram-pane panel-scroll" id="ram-stack-pane">
+                        <div id="ram-viewer-stack" class="ram-viewer"></div>
                     </div>
                 </div>
             </section>
