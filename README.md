@@ -14,8 +14,10 @@ Each iteration introduces one major CPU concept:
 | 2 | **ALU operations** & flags register (Z, N, C) | ✅ Done |
 | 3 | **RAM** (load/store) | ✅ Done |
 | 4 | **Branching** & loops (JMP, JZ, JNZ, JN, CMP) | ✅ Done |
-| 5 | Stack & subroutines | 🔜 Next |
-| 6 | I/O & interrupts | ⬜ |
+| 5 | **Per-phase stepping** (Fetch → Decode → Execute as separate steps) | ✅ Done |
+| 6 | Stack & subroutines | 🔜 Next |
+| 7 | I/O & interrupts | ⬜ |
+| 8 | **Pipelining** (overlap phases across instructions) | ⬜ |
 
 ## Running
 

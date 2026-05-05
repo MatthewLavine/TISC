@@ -1,5 +1,5 @@
 /* ============================================================
-   TISC — App Controller (Iteration 3 — Redesigned Layout)
+   TISC — App Controller (Iteration 5 — Per-Phase Stepping)
    ============================================================ */
 
 (function () {
@@ -70,7 +70,7 @@
     }
 
     function bindEvents() {
-        dom.stepBtn.addEventListener('click', onStep);
+        dom.stepBtn.addEventListener('click', onTick);
         dom.runBtn.addEventListener('click', onToggleRun);
         dom.resetBtn.addEventListener('click', onReset);
         dom.speedSlider.addEventListener('input', onSpeedChange);
@@ -83,7 +83,7 @@
             switch (e.key) {
                 case ' ':
                 case 's':
-                    e.preventDefault(); onStep(); break;
+                    e.preventDefault(); onTick(); break;
                 case 'r':
                     e.preventDefault(); onToggleRun(); break;
                 case 'Escape':
@@ -247,10 +247,19 @@
             dom.stepBtn.disabled = true;
         } else {
             dom.statusDot.className = 'status-dot';
-            dom.statusLabel.textContent = cpu.cycleCount === 0 ? 'Ready' : `Cycle ${cpu.cycleCount}`;
+            const phaseLabel = cpu.phase.toUpperCase();
+            dom.statusLabel.textContent = cpu.cycleCount === 0
+                ? `Ready — ${phaseLabel}` 
+                : `Cycle ${cpu.cycleCount} — ${phaseLabel}`;
             dom.stepBtn.disabled = false;
             dom.runBtn.disabled = false;
         }
+
+        // Update Step button label to show which phase comes next
+        const phaseIcons = { fetch: '⬇', decode: '🔍', execute: '⚡' };
+        const phaseNames = { fetch: 'Fetch', decode: 'Decode', execute: 'Execute' };
+        const nextPhase = cpu.phase;
+        dom.stepBtn.innerHTML = `<span class="btn-icon">${phaseIcons[nextPhase]}</span> ${phaseNames[nextPhase]}`;
 
         dom.runBtn.innerHTML = isRunning
             ? '<span class="btn-icon">⏸</span> Pause'
@@ -298,52 +307,90 @@
     }
 
     // --- Event Handlers ---
-    function onStep() {
+    function onTick() {
         if (cpu.halted) return;
 
-        const pc = cpu.getRegister(Register.PC);
-        const instruction = cpu.program[pc];
-        if (!instruction) {
-            addLogEntry('halt', 'PC out of bounds!');
-            cpu.halted = true;
-            updateUI();
-            return;
-        }
+        const tickResult = cpu.tick();
 
-        const decoded = cpu.decode(instruction);
-        addLogEntry('fetch', `Fetch <code>${formatHex(pc, 2)}</code>: <code>${decoded.assembly}</code>`);
+        switch (tickResult.phase) {
+            case Phase.FETCH: {
+                if (tickResult.status !== 'ok') {
+                    addLogEntry('halt', tickResult.message);
+                    break;
+                }
+                const decoded = cpu.decode(tickResult.instruction);
+                addLogEntry('fetch', `Fetch <code>${formatHex(tickResult.pc, 2)}</code>: <code>${decoded.assembly}</code>`);
+                break;
+            }
 
-        setTimeout(() => {
-            addLogEntry('decode', decoded.description);
+            case Phase.DECODE: {
+                addLogEntry('decode', tickResult.decoded.description);
+                break;
+            }
 
-            setTimeout(() => {
-                const stepResult = cpu.step();
+            case Phase.EXECUTE: {
+                const { result, decoded } = tickResult;
 
-                if (stepResult.status === 'halted' && stepResult.result) {
-                    addLogEntry('execute', stepResult.result.details);
+                if (tickResult.status === 'halted' && result) {
+                    addLogEntry('execute', result.details);
                     addLogEntry('halt', `Halted after ${cpu.cycleCount} cycles.`);
-                    flashRegisters(stepResult.result.changedRegisters || []);
-                } else if (stepResult.status === 'ok') {
-                    let logMsg = stepResult.result.details;
-                    if (stepResult.result.flagsChanged) logMsg += flagsSummary();
+                    flashRegisters(result.changedRegisters || []);
+                } else if (result) {
+                    let logMsg = result.details;
+                    if (result.flagsChanged) logMsg += flagsSummary();
 
-                    // Pick log type based on what the instruction did
                     let logType = 'execute';
-                    if (stepResult.result.memoryChanged) logType = 'memory';
-                    else if (stepResult.result.jumped) logType = 'jump';
+                    if (result.memoryChanged) logType = 'memory';
+                    else if (result.jumped) logType = 'jump';
 
                     addLogEntry(logType, logMsg);
-                    flashRegisters(stepResult.result.changedRegisters);
-                    if (decoded.opcode === 'LOAD') {
+                    flashRegisters(result.changedRegisters);
+                    if (decoded && decoded.opcode === 'LOAD') {
                         renderRamViewer([], [decoded.address & 0xFF]);
                     }
-                } else {
-                    addLogEntry('halt', stepResult.message);
                 }
+                break;
+            }
+        }
 
-                updateUI();
-            }, isRunning ? 0 : 100);
-        }, isRunning ? 0 : 100);
+        updateUI();
+    }
+
+    /** Run mode: auto-advance one full instruction (3 ticks) per interval */
+    function onAutoStep() {
+        if (cpu.halted) return;
+        // Run all 3 phases in sequence for auto mode
+        const stepResult = cpu.step();
+
+        if (stepResult.status === 'halted' && stepResult.result) {
+            const decoded = cpu.decode(stepResult.instruction);
+            addLogEntry('fetch', `Fetch <code>${formatHex(stepResult.pc, 2)}</code>: <code>${decoded.assembly}</code>`);
+            addLogEntry('decode', stepResult.decoded.description);
+            addLogEntry('execute', stepResult.result.details);
+            addLogEntry('halt', `Halted after ${cpu.cycleCount} cycles.`);
+            flashRegisters(stepResult.result.changedRegisters || []);
+        } else if (stepResult.status === 'ok') {
+            const decoded = stepResult.decoded;
+            addLogEntry('fetch', `Fetch <code>${formatHex(stepResult.pc, 2)}</code>: <code>${decoded.assembly}</code>`);
+            addLogEntry('decode', decoded.description);
+
+            let logMsg = stepResult.result.details;
+            if (stepResult.result.flagsChanged) logMsg += flagsSummary();
+
+            let logType = 'execute';
+            if (stepResult.result.memoryChanged) logType = 'memory';
+            else if (stepResult.result.jumped) logType = 'jump';
+
+            addLogEntry(logType, logMsg);
+            flashRegisters(stepResult.result.changedRegisters);
+            if (decoded.opcode === 'LOAD') {
+                renderRamViewer([], [decoded.address & 0xFF]);
+            }
+        } else {
+            addLogEntry('halt', stepResult.message);
+        }
+
+        updateUI();
     }
 
     function onToggleRun() {
@@ -363,7 +410,7 @@
                 cpu.halted = true;
                 stopRunning(); updateUI(); return;
             }
-            onStep();
+            onAutoStep();
         }, Math.max(100, 1000 / speed));
         updateUI();
     }

@@ -1,28 +1,20 @@
 /* ============================================================
-   TISC — CPU Engine (Iteration 4)
+   TISC — CPU Engine (Iteration 5)
    
-   KEY CONCEPTS (New in Iteration 4):
+   KEY CONCEPTS (New in Iteration 5):
    
-   8. BRANCHING (Jumps):
-      Until now, the PC always increments by 1 after each step.
-      Branching instructions CHANGE the PC to a different address,
-      letting the CPU skip ahead or loop back.
-      
-   9. CONDITIONAL JUMPS:
-      The real power comes from CONDITIONAL jumps — they check
-      the flags register and only jump if a condition is true:
-      
-      - JZ addr:  Jump if Zero flag is set   (result was 0)
-      - JNZ addr: Jump if Zero flag is clear  (result was not 0)
-      - JN addr:  Jump if Negative flag is set
-      
-      Combined with CMP (compare), this gives us if/else and loops.
-      
-   10. CMP (Compare):
-       CMP subtracts two registers just like SUB, but THROWS AWAY
-       the result — it only keeps the flags. This lets you ask
-       "are these equal?" or "which is bigger?" without destroying
-       any data.
+   11. PER-PHASE STEPPING:
+       Until now, step() did fetch+decode+execute atomically.
+       Real CPUs treat these as separate clock cycles:
+       
+       Clock 1: FETCH   — Read the instruction from memory at PC
+       Clock 2: DECODE  — Figure out what the instruction means
+       Clock 3: EXECUTE — Do the work (ALU op, memory, jump, etc.)
+       
+       Now tick() advances ONE phase at a time. The CPU tracks
+       which phase it's in, and the UI can visualize each phase
+       as a distinct step. This is the foundation for pipelining
+       later (where multiple instructions are in-flight at once).
    ============================================================ */
 
 const Opcode = Object.freeze({
@@ -59,6 +51,16 @@ const Opcode = Object.freeze({
 
 /** RAM size in bytes. 256 = one byte can address the whole space (0x00–0xFF). */
 const RAM_SIZE = 256;
+
+/**
+ * CPU phase — the three stages every instruction goes through.
+ * In a real CPU, each phase takes one or more clock cycles.
+ */
+const Phase = Object.freeze({
+    FETCH: 'fetch',
+    DECODE: 'decode',
+    EXECUTE: 'execute',
+});
 
 const Register = Object.freeze({
     PC: 'PC',
@@ -395,6 +397,15 @@ class CPU {
         this.program = [];
         this.halted = false;
         this.cycleCount = 0;
+
+        /** Current phase in the instruction cycle */
+        this.phase = Phase.FETCH;
+
+        /** The fetched instruction (held between phases) */
+        this._fetchedInstruction = null;
+
+        /** The decoded instruction (held between phases) */
+        this._decodedInstruction = null;
     }
 
     loadProgram(instructions) {
@@ -411,6 +422,9 @@ class CPU {
         this.ramChanges = [];
         this.halted = false;
         this.cycleCount = 0;
+        this.phase = Phase.FETCH;
+        this._fetchedInstruction = null;
+        this._decodedInstruction = null;
     }
 
     /**
@@ -854,39 +868,112 @@ class CPU {
         return result;
     }
 
+    /**
+     * Tick — advance the CPU by ONE phase.
+     * 
+     * This is how real CPUs work: each clock tick moves the
+     * instruction through one stage of the pipeline.
+     * 
+     * Returns an object describing what happened in this phase.
+     */
+    tick() {
+        if (this.halted) {
+            return { status: 'halted', phase: null, message: 'CPU is halted. Reset to run again.' };
+        }
+
+        switch (this.phase) {
+            case Phase.FETCH: {
+                const pc = this.registers[Register.PC];
+                this.cycleCount++;
+                const instruction = this.fetch();
+
+                if (!instruction) {
+                    this.halted = true;
+                    return {
+                        status: 'error',
+                        phase: Phase.FETCH,
+                        message: `PC (${pc}) is out of bounds! No instruction at this address. CPU halted.`,
+                    };
+                }
+
+                this._fetchedInstruction = instruction;
+                this._fetchPC = pc;
+                this.phase = Phase.DECODE;
+
+                return {
+                    status: 'ok',
+                    phase: Phase.FETCH,
+                    pc,
+                    instruction,
+                };
+            }
+
+            case Phase.DECODE: {
+                const decoded = this.decode(this._fetchedInstruction);
+                this._decodedInstruction = decoded;
+                this.phase = Phase.EXECUTE;
+
+                return {
+                    status: 'ok',
+                    phase: Phase.DECODE,
+                    decoded,
+                };
+            }
+
+            case Phase.EXECUTE: {
+                const decoded = this._decodedInstruction;
+                const pc = this._fetchPC;
+                const result = this.execute(decoded);
+
+                // Only increment PC if the instruction didn't jump
+                if (!this.halted && !result.jumped) {
+                    this.registers[Register.PC] = pc + 1;
+                    result.changedRegisters.push(Register.PC);
+                }
+
+                // Reset phase for next instruction
+                this.phase = Phase.FETCH;
+                this._fetchedInstruction = null;
+                this._decodedInstruction = null;
+
+                return {
+                    status: this.halted ? 'halted' : 'ok',
+                    phase: Phase.EXECUTE,
+                    cycle: this.cycleCount,
+                    pc,
+                    instruction: this._fetchedInstruction,
+                    decoded,
+                    result,
+                };
+            }
+        }
+    }
+
+    /**
+     * Step — run all 3 phases at once (convenience method).
+     * Equivalent to calling tick() three times.
+     */
     step() {
         if (this.halted) {
             return { status: 'halted', message: 'CPU is halted. Reset to run again.' };
         }
 
-        const pc = this.registers[Register.PC];
-        this.cycleCount++;
+        const fetchResult = this.tick();
+        if (fetchResult.status !== 'ok') return fetchResult;
 
-        const instruction = this.fetch();
-        if (!instruction) {
-            this.halted = true;
-            return {
-                status: 'error',
-                message: `PC (${pc}) is out of bounds! No instruction at this address. CPU halted.`,
-            };
-        }
+        const decodeResult = this.tick();
+        if (decodeResult.status !== 'ok') return decodeResult;
 
-        const decoded = this.decode(instruction);
-        const result = this.execute(decoded);
+        const executeResult = this.tick();
 
-        // Only increment PC if the instruction didn't jump
-        if (!this.halted && !result.jumped) {
-            this.registers[Register.PC] = pc + 1;
-            result.changedRegisters.push(Register.PC);
-        }
-
+        // Combine into legacy step() format
         return {
-            status: this.halted ? 'halted' : 'ok',
-            cycle: this.cycleCount,
-            pc,
-            instruction,
-            decoded,
-            result,
+            status: executeResult.status,
+            cycle: executeResult.cycle,
+            pc: fetchResult.pc,
+            instruction: fetchResult.instruction,
+            decoded: decodeResult.decoded,
+            result: executeResult.result,
         };
     }
 }
@@ -894,6 +981,7 @@ class CPU {
 window.CPU = CPU;
 window.Opcode = Opcode;
 window.Register = Register;
+window.Phase = Phase;
 window.PROGRAMS = PROGRAMS;
 window.RAM_SIZE = RAM_SIZE;
 window.makeInstruction = makeInstruction;
