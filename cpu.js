@@ -305,6 +305,62 @@ const PROGRAMS = {
             /* 15 */ makeInstruction(Opcode.HALT),
         ],
     },
+
+    'sum-1-to-n': {
+        name: 'Sum 1 to 10',
+        description: 'Computes 1+2+3+...+10 = 55. R0 accumulates the sum, R1 is the counter (counts up from 1). The loop adds R1 to R0, increments R1, and checks if R1 has passed 10.',
+        instructions: [
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),     // R0 = sum = 0
+            /* 1 */ makeInstruction(Opcode.LOAD_IMM, Register.R1, 1),     // R1 = counter = 1
+            /* 2 */ makeInstruction(Opcode.LOAD_IMM, Register.R2, 1),     // R2 = step = 1
+            /* 3 */ makeInstruction(Opcode.LOAD_IMM, Register.R3, 11),    // R3 = limit = 11 (stop when R1 == 11)
+            // --- loop start (addr 4) ---
+            /* 4 */ makeInstruction(Opcode.ADD, Register.R0, Register.R1), // sum += counter
+            /* 5 */ makeInstruction(Opcode.ADD, Register.R1, Register.R2), // counter += 1
+            /* 6 */ makeInstruction(Opcode.CMP, Register.R1, Register.R3), // counter == 11?
+            /* 7 */ makeInstruction(Opcode.JNZ, 4),                       // if not, loop
+            // --- loop end ---
+            /* 8 */ makeInstruction(Opcode.HALT),                         // R0 = 55
+        ],
+    },
+
+    'multiply': {
+        name: 'Multiply (6 × 7)',
+        description: 'Multiplies 6 × 7 = 42 using repeated addition — no MUL instruction needed! R0 accumulates the product, R1 counts down from 7 to 0, adding 6 each time. This is exactly how early CPUs did multiplication.',
+        instructions: [
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),     // R0 = product = 0
+            /* 1 */ makeInstruction(Opcode.LOAD_IMM, Register.R1, 7),     // R1 = counter = 7
+            /* 2 */ makeInstruction(Opcode.LOAD_IMM, Register.R2, 6),     // R2 = multiplicand = 6
+            /* 3 */ makeInstruction(Opcode.LOAD_IMM, Register.R3, 1),     // R3 = 1 (for decrement)
+            // --- loop start (addr 4) ---
+            /* 4 */ makeInstruction(Opcode.ADD, Register.R0, Register.R2), // product += 6
+            /* 5 */ makeInstruction(Opcode.SUB, Register.R1, Register.R3), // counter -= 1
+            /* 6 */ makeInstruction(Opcode.JNZ, 4),                       // if counter != 0, loop
+            // --- loop end ---
+            /* 7 */ makeInstruction(Opcode.HALT),                         // R0 = 42
+        ],
+    },
+
+    'fibonacci': {
+        name: 'Fibonacci (Loop)',
+        description: 'Computes 12 Fibonacci numbers in a loop (~88 cycles). R0/R1 hold prev/curr, swapped via XOR each iteration. Stores the latest value to RAM[0x00] — it keeps overwriting because we can only STORE to fixed addresses. Watch R1 cycle through: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144!',
+        instructions: [
+            /* 0  */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),     // R0 = prev = 0
+            /* 1  */ makeInstruction(Opcode.LOAD_IMM, Register.R1, 1),     // R1 = curr = 1
+            /* 2  */ makeInstruction(Opcode.LOAD_IMM, Register.R2, 12),    // R2 = counter (12 iterations)
+            /* 3  */ makeInstruction(Opcode.LOAD_IMM, Register.R3, 1),     // R3 = 1 (for decrement)
+            // --- loop start (addr 4) ---
+            /* 4  */ makeInstruction(Opcode.STORE, Register.R1, 0x00),     // RAM[0] = current fib value
+            /* 5  */ makeInstruction(Opcode.ADD, Register.R0, Register.R1), // next = prev + curr
+            /* 6  */ makeInstruction(Opcode.XOR, Register.R0, Register.R1), // XOR swap R0 ↔ R1
+            /* 7  */ makeInstruction(Opcode.XOR, Register.R1, Register.R0), //   so R0 = old curr (new prev)
+            /* 8  */ makeInstruction(Opcode.XOR, Register.R0, Register.R1), //   and R1 = next (new curr)
+            /* 9  */ makeInstruction(Opcode.SUB, Register.R2, Register.R3), // counter -= 1
+            /* 10 */ makeInstruction(Opcode.JNZ, 4),                       // if counter != 0, loop
+            // --- loop end ---
+            /* 11 */ makeInstruction(Opcode.HALT),                         // R1 = 144, RAM[0] = 144
+        ],
+    },
 };
 
 class CPU {
