@@ -1,20 +1,24 @@
 /* ============================================================
-   TISC — CPU Engine (Iteration 5)
+   TISC — CPU Engine (Iteration 6)
    
-   KEY CONCEPTS (New in Iteration 5):
+   KEY CONCEPTS (New in Iteration 6):
    
-   11. PER-PHASE STEPPING:
-       Until now, step() did fetch+decode+execute atomically.
-       Real CPUs treat these as separate clock cycles:
+   12. THE STACK & STACK POINTER (SP):
+       The stack is a LIFO (Last-In, First-Out) data structure in memory.
+       The CPU uses a special register, the Stack Pointer (SP), to keep
+       track of the "top" of the stack. We'll start our stack at the very
+       end of RAM (0xFF) and grow it downwards.
        
-       Clock 1: FETCH   — Read the instruction from memory at PC
-       Clock 2: DECODE  — Figure out what the instruction means
-       Clock 3: EXECUTE — Do the work (ALU op, memory, jump, etc.)
+   13. PUSH AND POP:
+       PUSH saves a register's value to the stack and moves the SP.
+       POP retrieves the value from the stack back into a register.
+       This is essential for saving state when you run out of registers!
        
-       Now tick() advances ONE phase at a time. The CPU tracks
-       which phase it's in, and the UI can visualize each phase
-       as a distinct step. This is the foundation for pipelining
-       later (where multiple instructions are in-flight at once).
+   14. SUBROUTINES (CALL / RET):
+       CALL is like JMP, but before it jumps, it PUSHes the *return address*
+       (the next instruction's PC) onto the stack.
+       RET POPs that address off the stack and jumps back to it.
+       This enables reusable functions and recursion!
    ============================================================ */
 
 const Opcode = Object.freeze({
@@ -47,6 +51,16 @@ const Opcode = Object.freeze({
     JN: 'JN',
     /** Compare: sets flags from (reg1 - reg2) without storing result */
     CMP: 'CMP',
+
+    // --- Iteration 6: Stack & Subroutines ---
+    /** Push register onto the stack */
+    PUSH: 'PUSH',
+    /** Pop top of stack into register */
+    POP: 'POP',
+    /** Push return address and jump to subroutine */
+    CALL: 'CALL',
+    /** Pop return address and jump back */
+    RET: 'RET',
 });
 
 /** RAM size in bytes. 256 = one byte can address the whole space (0x00–0xFF). */
@@ -64,6 +78,7 @@ const Phase = Object.freeze({
 
 const Register = Object.freeze({
     PC: 'PC',
+    SP: 'SP',
     R0: 'R0',
     R1: 'R1',
     R2: 'R2',
@@ -363,12 +378,40 @@ const PROGRAMS = {
             /* 11 */ makeInstruction(Opcode.HALT),                         // R1 = 144, RAM[0] = 144
         ],
     },
+
+    'subroutine-basic': {
+        name: 'Basic Subroutine',
+        description: 'Demonstrates CALL and RET. The main program loads a value, CALLs a subroutine to double it, and then halts. Notice how CALL pushes the return address (0x02) to the stack (at RAM 0xFF), and RET pops it back into the PC!',
+        instructions: [
+            // --- Main Program ---
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 5),     // R0 = 5
+            /* 1 */ makeInstruction(Opcode.CALL, 3),                      // Call "Double" subroutine at address 3
+            /* 2 */ makeInstruction(Opcode.HALT),                         // Execution ends here (R0 = 10)
+
+            // --- Subroutine "Double" ---
+            /* 3 */ makeInstruction(Opcode.ADD, Register.R0, Register.R0), // R0 = R0 + R0
+            /* 4 */ makeInstruction(Opcode.RET),                          // Return to caller
+        ],
+    },
+
+    'stack-push-pop': {
+        name: 'Push & Pop (Save State)',
+        description: 'Shows how to use the stack to save a register. We put 42 in R0, PUSH it, clobber R0 with 0, then POP it back into R1. The stack saves the day!',
+        instructions: [
+            /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 42),    // R0 = 42
+            /* 1 */ makeInstruction(Opcode.PUSH, Register.R0),            // Save 42 to the stack
+            /* 2 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),     // R0 is overwritten! (R0 = 0)
+            /* 3 */ makeInstruction(Opcode.POP, Register.R1),             // Restore the saved value into R1 (R1 = 42)
+            /* 4 */ makeInstruction(Opcode.HALT),
+        ],
+    },
 };
 
 class CPU {
     constructor() {
         this.registers = {
             [Register.PC]: 0,
+            [Register.SP]: 0xFF,  // Stack grows downwards from the end of RAM
             [Register.R0]: 0,
             [Register.R1]: 0,
             [Register.R2]: 0,
@@ -415,7 +458,7 @@ class CPU {
 
     reset() {
         for (const reg of Object.keys(this.registers)) {
-            this.registers[reg] = 0;
+            this.registers[reg] = reg === Register.SP ? 0xFF : 0;
         }
         this.flags = makeFlags();
         this.ram.fill(0);
@@ -635,6 +678,37 @@ class CPU {
                     reg2: operands[1],
                 };
 
+            case Opcode.PUSH:
+                return {
+                    opcode,
+                    description: `Push ${operands[0]} onto the stack`,
+                    assembly: `PUSH ${operands[0]}`,
+                    srcReg: operands[0],
+                };
+
+            case Opcode.POP:
+                return {
+                    opcode,
+                    description: `Pop the top of the stack into ${operands[0]}`,
+                    assembly: `POP ${operands[0]}`,
+                    destReg: operands[0],
+                };
+
+            case Opcode.CALL:
+                return {
+                    opcode,
+                    description: `Push return address and jump to subroutine at ${operands[0]}`,
+                    assembly: `CALL ${operands[0]}`,
+                    target: operands[0],
+                };
+
+            case Opcode.RET:
+                return {
+                    opcode,
+                    description: `Pop return address from stack and jump back`,
+                    assembly: `RET`,
+                };
+
             case Opcode.HALT:
                 return {
                     opcode,
@@ -851,6 +925,67 @@ class CPU {
                 // CMP does NOT store the result — only flags change
                 result.flagsChanged = true;
                 result.details = `${reg1}(${a}) - ${reg2}(${b}) = ${raw & 0xFF} (flags only)`;
+                break;
+            }
+
+            case Opcode.PUSH: {
+                const { srcReg } = decoded;
+                const val = this.registers[srcReg];
+                const sp = this.registers[Register.SP];
+                // Write to current SP, then decrement
+                this.writeMemory(sp, val);
+                const newSp = (sp - 1) & 0xFF;
+                this.registers[Register.SP] = newSp;
+                result.memoryChanged = true;
+                result.changedRegisters.push(Register.SP);
+                result.details = `Pushed ${srcReg}(${val}) to RAM[0x${sp.toString(16).toUpperCase().padStart(2,'0')}], SP → 0x${newSp.toString(16).toUpperCase().padStart(2,'0')}`;
+                break;
+            }
+
+            case Opcode.POP: {
+                const { destReg } = decoded;
+                // Increment SP, then read
+                const sp = (this.registers[Register.SP] + 1) & 0xFF;
+                const val = this.readMemory(sp);
+                this.registers[destReg] = val;
+                this.registers[Register.SP] = sp;
+                result.changedRegisters.push(destReg, Register.SP);
+                result.details = `Popped ${val} from RAM[0x${sp.toString(16).toUpperCase().padStart(2,'0')}] into ${destReg}, SP → 0x${sp.toString(16).toUpperCase().padStart(2,'0')}`;
+                break;
+            }
+
+            case Opcode.CALL: {
+                const { target } = decoded;
+                const retAddr = this._fetchPC + 1; // Return address is the instruction *after* CALL
+                const sp = this.registers[Register.SP];
+                
+                // Push return address
+                this.writeMemory(sp, retAddr);
+                const newSp = (sp - 1) & 0xFF;
+                this.registers[Register.SP] = newSp;
+                
+                // Jump to target
+                this.registers[Register.PC] = target;
+                
+                result.jumped = true;
+                result.memoryChanged = true;
+                result.changedRegisters.push(Register.SP, Register.PC);
+                result.details = `Saved return address (${retAddr}) to stack, jumped → ${target}`;
+                break;
+            }
+
+            case Opcode.RET: {
+                // Pop return address
+                const sp = (this.registers[Register.SP] + 1) & 0xFF;
+                const retAddr = this.readMemory(sp);
+                this.registers[Register.SP] = sp;
+                
+                // Jump back
+                this.registers[Register.PC] = retAddr;
+                
+                result.jumped = true;
+                result.changedRegisters.push(Register.SP, Register.PC);
+                result.details = `Returned → address ${retAddr} (popped from stack)`;
                 break;
             }
 

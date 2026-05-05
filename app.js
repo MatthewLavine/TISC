@@ -12,11 +12,13 @@
 
     const dom = {
         regPC: document.getElementById('reg-pc-value'),
+        regSP: document.getElementById('reg-sp-value'),
         regR0: document.getElementById('reg-r0-value'),
         regR1: document.getElementById('reg-r1-value'),
         regR2: document.getElementById('reg-r2-value'),
         regR3: document.getElementById('reg-r3-value'),
         regPCContainer: document.getElementById('reg-pc'),
+        regSPContainer: document.getElementById('reg-sp'),
         regR0Container: document.getElementById('reg-r0'),
         regR1Container: document.getElementById('reg-r1'),
         regR2Container: document.getElementById('reg-r2'),
@@ -49,6 +51,7 @@
 
     const regValueElements = {
         [Register.PC]: dom.regPC,
+        [Register.SP]: dom.regSP,
         [Register.R0]: dom.regR0,
         [Register.R1]: dom.regR1,
         [Register.R2]: dom.regR2,
@@ -57,6 +60,7 @@
 
     const regContainerElements = {
         [Register.PC]: dom.regPCContainer,
+        [Register.SP]: dom.regSPContainer,
         [Register.R0]: dom.regR0Container,
         [Register.R1]: dom.regR1Container,
         [Register.R2]: dom.regR2Container,
@@ -131,9 +135,10 @@
             'STORE': 0x0A, 'LOAD': 0x0B,
             'JMP': 0x10, 'JZ': 0x11, 'JNZ': 0x12, 'JN': 0x13,
             'CMP': 0x14,
+            'PUSH': 0x20, 'POP': 0x21, 'CALL': 0x22, 'RET': 0x23,
             'HALT': 0xFF,
         };
-        const regMap = { 'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3 };
+        const regMap = { 'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'SP': 4 };
         const opByte = opcodeMap[instr.opcode] || 0x00;
 
         switch (instr.opcode) {
@@ -147,7 +152,7 @@
                 const src = regMap[instr.operands[1]] || 0;
                 return `${formatHex(opByte)} ${formatHex(dest)} ${formatHex(src)}`;
             }
-            case 'NOT': case 'SHL': case 'SHR': {
+            case 'NOT': case 'SHL': case 'SHR': case 'PUSH': case 'POP': {
                 const dest = regMap[instr.operands[0]] || 0;
                 return `${formatHex(opByte)} ${formatHex(dest)}`;
             }
@@ -156,12 +161,15 @@
                 const addr = instr.operands[1] & 0xFF;
                 return `${formatHex(opByte)} ${formatHex(reg)} ${formatHex(addr)}`;
             }
-            case 'JMP': case 'JZ': case 'JNZ': case 'JN': {
+            case 'JMP': case 'JZ': case 'JNZ': case 'JN': case 'CALL': {
                 const target = instr.operands[0] & 0xFF;
                 return `${formatHex(opByte)} ${formatHex(target)}`;
             }
-            case 'HALT': return `${formatHex(opByte)}`;
-            default: return '??';
+            case 'RET':
+            case 'HALT':
+                return `${formatHex(opByte)}`;
+            default:
+                return '???';
         }
     }
 

@@ -44,10 +44,14 @@
                     <option value="multiply">Multiply (6 × 7)</option>
                     <option value="fibonacci">Fibonacci (Loop)</option>
                 </optgroup>
+                <optgroup label="Stack & Subroutines">
+                    <option value="subroutine-basic">Basic Subroutine (CALL/RET)</option>
+                    <option value="stack-push-pop">Push & Pop (Save State)</option>
+                </optgroup>
             </select>
         </div>
         <div class="header-right">
-            <span class="iteration-badge">Iteration 5: Per-Phase Stepping</span>
+            <span class="iteration-badge">Iteration 6: Stack & Subroutines</span>
         </div>
     </header>
 
@@ -61,6 +65,10 @@
                     <div class="sreg sreg-pc" id="reg-pc">
                         <span class="sreg-name">PC</span>
                         <span class="sreg-val" id="reg-pc-value">0</span>
+                    </div>
+                    <div class="sreg sreg-sp" id="reg-sp">
+                        <span class="sreg-name">SP</span>
+                        <span class="sreg-val" id="reg-sp-value">255</span>
                     </div>
                     <div class="sreg" id="reg-r0">
                         <span class="sreg-name">R0</span>
