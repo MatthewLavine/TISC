@@ -27,6 +27,7 @@
         flagZ: document.getElementById('flag-z'),
         flagN: document.getElementById('flag-n'),
         flagC: document.getElementById('flag-c'),
+        flagI: document.getElementById('flag-i'),
 
         stepBtn: document.getElementById('step-btn'),
         runBtn: document.getElementById('run-btn'),
@@ -46,6 +47,11 @@
 
         logEntries: document.getElementById('log-entries'),
         clearLogBtn: document.getElementById('clear-log-btn'),
+
+        ioScreen: document.getElementById('io-screen'),
+        ioInput: document.getElementById('io-input'),
+        irqBtn: document.getElementById('irq-btn'),
+        clearIoBtn: document.getElementById('clear-io-btn'),
 
         toggleConceptBtn: document.getElementById('toggle-concept-btn'),
         conceptBar: document.getElementById('concept-bar'),
@@ -84,6 +90,20 @@
         dom.clearLogBtn.addEventListener('click', onClearLog);
         dom.toggleConceptBtn.addEventListener('click', onToggleConcept);
 
+        dom.clearIoBtn.addEventListener('click', () => { dom.ioScreen.textContent = ''; });
+        dom.irqBtn.addEventListener('click', () => { cpu.requestInterrupt(); updateUI(); });
+        dom.ioInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (val) {
+                // Write character ASCII code to RAM 0xF1
+                cpu.ram[0xF1] = val.charCodeAt(0);
+                cpu.ramChanges.push(0xF1);
+                cpu.requestInterrupt();
+                setTimeout(() => { e.target.value = ''; }, 0); // Clear input right after
+                updateUI();
+            }
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
             switch (e.key) {
@@ -94,6 +114,8 @@
                     e.preventDefault(); onToggleRun(); break;
                 case 'Escape':
                     e.preventDefault(); onReset(); break;
+                case 'i':
+                    e.preventDefault(); cpu.requestInterrupt(); updateUI(); break;
             }
         });
     }
@@ -105,6 +127,7 @@
         currentProgramId = programId;
         cpu.loadProgram(program.instructions);
         dom.programDescription.textContent = program.description;
+        dom.ioScreen.textContent = '';
         renderMemoryTable();
         clearLog();
         addLogEntry('info', `Loaded: <strong>${program.name}</strong> — ${program.description}`);
@@ -260,6 +283,15 @@
         updateFlagsUI();
         renderRamViewer(cpu.ramChanges);
 
+        // Check for MMIO Display Output (0xF0)
+        if (cpu.ramChanges.includes(0xF0)) {
+            const charCode = cpu.ram[0xF0];
+            if (charCode > 0) {
+                dom.ioScreen.textContent += String.fromCharCode(charCode);
+                dom.ioScreen.scrollTop = dom.ioScreen.scrollHeight;
+            }
+        }
+
         if (cpu.halted) {
             dom.statusDot.className = 'status-dot halted';
             dom.statusLabel.textContent = 'Halted';
@@ -297,6 +329,7 @@
         dom.flagZ.classList.toggle('active', cpu.flags.Z);
         dom.flagN.classList.toggle('active', cpu.flags.N);
         dom.flagC.classList.toggle('active', cpu.flags.C);
+        dom.flagI.classList.toggle('active', cpu.flags.I);
     }
 
     function flashRegisters(changedRegs) {
@@ -339,7 +372,10 @@
 
         switch (tickResult.phase) {
             case Phase.FETCH: {
-                if (tickResult.status !== 'ok') {
+                if (tickResult.status === 'interrupt') {
+                    addLogEntry('jump', tickResult.message);
+                    break;
+                } else if (tickResult.status !== 'ok') {
                     addLogEntry('halt', tickResult.message);
                     break;
                 }

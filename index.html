@@ -48,10 +48,13 @@
                     <option value="subroutine-basic">Basic Subroutine (CALL/RET)</option>
                     <option value="stack-push-pop">Push & Pop (Save State)</option>
                 </optgroup>
+                <optgroup label="I/O & Interrupts">
+                    <option value="echo-interrupt">Interrupt-driven Echo</option>
+                </optgroup>
             </select>
         </div>
         <div class="header-right">
-            <span class="iteration-badge">Iteration 6: Stack & Subroutines</span>
+            <span class="iteration-badge">Iteration 7: I/O & Interrupts</span>
         </div>
     </header>
 
@@ -104,6 +107,10 @@
                     <div class="sflag" id="flag-c">
                         <span class="sflag-dot" id="flag-c-dot"></span>
                         <span class="sflag-name">C</span>
+                    </div>
+                    <div class="sflag" id="flag-i">
+                        <span class="sflag-dot" id="flag-i-dot"></span>
+                        <span class="sflag-name">I</span>
                     </div>
                 </div>
             </div>
@@ -189,21 +196,39 @@
                 </div>
             </section>
 
-            <!-- Execution Log -->
-            <section id="log-panel" class="panel">
-                <div class="panel-header">
-                    <h2>📜 Log</h2>
-                    <button id="clear-log-btn" class="icon-btn" title="Clear log">✕</button>
-                </div>
-                <div class="panel-body">
-                    <div id="log-entries" class="log-entries">
-                        <div class="log-entry log-info">
-                            <span class="log-badge">INFO</span>
-                            Press <strong>Step</strong> or <strong>Run</strong> to begin.
+            <!-- Right Column Wrapper -->
+            <div class="right-column-wrapper">
+                <!-- I/O Console -->
+                <section id="io-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>🖥️ I/O Console</h2>
+                        <button id="clear-io-btn" class="icon-btn" title="Clear screen">✕</button>
+                    </div>
+                    <div class="panel-body io-body">
+                        <div id="io-screen" class="io-screen"></div>
+                        <div class="io-controls">
+                            <input type="text" id="io-input" maxlength="1" placeholder="Type a key..." class="io-input" autocomplete="off">
+                            <button id="irq-btn" class="btn-irq" title="Trigger Hardware Interrupt">⚡ IRQ</button>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
+
+                <!-- Execution Log -->
+                <section id="log-panel" class="panel">
+                    <div class="panel-header">
+                        <h2>📜 Log</h2>
+                        <button id="clear-log-btn" class="icon-btn" title="Clear log">✕</button>
+                    </div>
+                    <div class="panel-body">
+                        <div id="log-entries" class="log-entries">
+                            <div class="log-entry log-info">
+                                <span class="log-badge">INFO</span>
+                                Press <strong>Step</strong> or <strong>Run</strong> to begin.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </div>
     </main>
 

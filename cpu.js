@@ -1,24 +1,19 @@
 /* ============================================================
-   TISC — CPU Engine (Iteration 6)
+   TISC — CPU Engine (Iteration 7)
    
-   KEY CONCEPTS (New in Iteration 6):
+   KEY CONCEPTS (New in Iteration 7):
    
-   12. THE STACK & STACK POINTER (SP):
-       The stack is a LIFO (Last-In, First-Out) data structure in memory.
-       The CPU uses a special register, the Stack Pointer (SP), to keep
-       track of the "top" of the stack. We'll start our stack at the very
-       end of RAM (0xFF) and grow it downwards.
+   15. MEMORY-MAPPED I/O (MMIO):
+       The CPU communicates with the outside world via memory addresses.
+       Writing to address 0xF0 acts as "Display Output" (prints to screen).
+       Reading from address 0xF1 gets "Keyboard Input" (reads key presses).
        
-   13. PUSH AND POP:
-       PUSH saves a register's value to the stack and moves the SP.
-       POP retrieves the value from the stack back into a register.
-       This is essential for saving state when you run out of registers!
-       
-   14. SUBROUTINES (CALL / RET):
-       CALL is like JMP, but before it jumps, it PUSHes the *return address*
-       (the next instruction's PC) onto the stack.
-       RET POPs that address off the stack and jumps back to it.
-       This enables reusable functions and recursion!
+   16. INTERRUPTS (IRQs & ISRs):
+       Instead of polling (looping forever to check for input), external hardware
+       can trigger an Interrupt Request (IRQ). When enabled (I flag = 1), the CPU
+       pauses what it's doing, pushes its state (PC and Flags) to the stack, and jumps
+       to a fixed Interrupt Service Routine (ISR) address (0x80).
+       IRET returns from the interrupt, popping the state back.
    ============================================================ */
 
 const Opcode = Object.freeze({
@@ -61,6 +56,14 @@ const Opcode = Object.freeze({
     CALL: 'CALL',
     /** Pop return address and jump back */
     RET: 'RET',
+
+    // --- Iteration 7: I/O & Interrupts ---
+    /** Set Interrupt flag (Enable interrupts) */
+    STI: 'STI',
+    /** Clear Interrupt flag (Disable interrupts) */
+    CLI: 'CLI',
+    /** Return from Interrupt */
+    IRET: 'IRET',
 });
 
 /** RAM size in bytes. 256 = one byte can address the whole space (0x00–0xFF). */
@@ -101,6 +104,7 @@ function makeFlags() {
         Z: false,  // Zero flag: result was 0
         N: false,  // Negative flag: result's high bit was 1
         C: false,  // Carry flag: unsigned overflow occurred
+        I: false,  // Interrupt Enable flag: if true, CPU will handle IRQs
     };
 }
 
@@ -401,8 +405,39 @@ const PROGRAMS = {
             /* 0 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 42),    // R0 = 42
             /* 1 */ makeInstruction(Opcode.PUSH, Register.R0),            // Save 42 to the stack
             /* 2 */ makeInstruction(Opcode.LOAD_IMM, Register.R0, 0),     // R0 is overwritten! (R0 = 0)
-            /* 3 */ makeInstruction(Opcode.POP, Register.R1),             // Restore the saved value into R1 (R1 = 42)
             /* 4 */ makeInstruction(Opcode.HALT),
+        ],
+    },
+
+    'echo-interrupt': {
+        name: 'Interrupt-driven Echo',
+        description: 'When you press a key, an interrupt fires. The CPU jumps to the ISR (Interrupt Service Routine) at address 0x10, reads the key from 0xF1, echoes it to 0xF0, and returns. Notice how the main loop just spins doing nothing!',
+        instructions: [
+            // --- Main Program ---
+            /* 0x00 */ makeInstruction(Opcode.STI),                      // Enable interrupts
+            /* 0x01 */ makeInstruction(Opcode.JMP, 1),                   // Infinite loop
+            /* 0x02 */ null,
+            /* 0x03 */ null,
+            /* 0x04 */ null,
+            /* 0x05 */ null,
+            /* 0x06 */ null,
+            /* 0x07 */ null,
+            /* 0x08 */ null,
+            /* 0x09 */ null,
+            /* 0x0A */ null,
+            /* 0x0B */ null,
+            /* 0x0C */ null,
+            /* 0x0D */ null,
+            /* 0x0E */ null,
+            /* 0x0F */ null,
+
+            // --- ISR (Interrupt Service Routine) at 0x10 ---
+            // CPU auto-disabled interrupts when it jumped here
+            /* 0x10 */ makeInstruction(Opcode.PUSH, Register.R0),        // Save R0 since we're interrupting!
+            /* 0x11 */ makeInstruction(Opcode.LOAD, Register.R0, 0xF1),  // Read from Keyboard (0xF1)
+            /* 0x12 */ makeInstruction(Opcode.STORE, Register.R0, 0xF0), // Write to Display (0xF0)
+            /* 0x13 */ makeInstruction(Opcode.POP, Register.R0),         // Restore R0
+            /* 0x14 */ makeInstruction(Opcode.IRET),                     // Return and re-enable interrupts
         ],
     },
 };
@@ -449,6 +484,13 @@ class CPU {
 
         /** The decoded instruction (held between phases) */
         this._decodedInstruction = null;
+
+        /** Hardware interrupt request line */
+        this.pendingInterrupt = false;
+    }
+
+    requestInterrupt() {
+        this.pendingInterrupt = true;
     }
 
     loadProgram(instructions) {
@@ -468,6 +510,7 @@ class CPU {
         this.phase = Phase.FETCH;
         this._fetchedInstruction = null;
         this._decodedInstruction = null;
+        this.pendingInterrupt = false;
     }
 
     /**
@@ -707,6 +750,27 @@ class CPU {
                     opcode,
                     description: `Pop return address from stack and jump back`,
                     assembly: `RET`,
+                };
+
+            case Opcode.STI:
+                return {
+                    opcode,
+                    description: `Set Interrupt flag (Enable hardware interrupts)`,
+                    assembly: `STI`,
+                };
+
+            case Opcode.CLI:
+                return {
+                    opcode,
+                    description: `Clear Interrupt flag (Disable hardware interrupts)`,
+                    assembly: `CLI`,
+                };
+
+            case Opcode.IRET:
+                return {
+                    opcode,
+                    description: `Return from Interrupt (Restores flags and PC)`,
+                    assembly: `IRET`,
                 };
 
             case Opcode.HALT:
@@ -989,6 +1053,42 @@ class CPU {
                 break;
             }
 
+            case Opcode.STI: {
+                this.flags.I = true;
+                result.flagsChanged = true;
+                result.details = 'Interrupts Enabled (I=1)';
+                break;
+            }
+
+            case Opcode.CLI: {
+                this.flags.I = false;
+                result.flagsChanged = true;
+                result.details = 'Interrupts Disabled (I=0)';
+                break;
+            }
+
+            case Opcode.IRET: {
+                // Pop Flags
+                let sp = (this.registers[Register.SP] + 1) & 0xFF;
+                const flagByte = this.readMemory(sp);
+                this.flags.Z = (flagByte & 1) !== 0;
+                this.flags.N = (flagByte & 2) !== 0;
+                this.flags.C = (flagByte & 4) !== 0;
+                this.flags.I = true; // IRET implies we are done with the interrupt, re-enable them
+                
+                // Pop PC
+                sp = (sp + 1) & 0xFF;
+                const retAddr = this.readMemory(sp);
+                this.registers[Register.SP] = sp;
+                this.registers[Register.PC] = retAddr;
+                
+                result.jumped = true;
+                result.flagsChanged = true;
+                result.changedRegisters.push(Register.SP, Register.PC);
+                result.details = `Returned from ISR → address ${retAddr}, Flags restored, Interrupts Enabled`;
+                break;
+            }
+
             case Opcode.HALT: {
                 this.halted = true;
                 result.details = 'CPU halted';
@@ -1018,6 +1118,39 @@ class CPU {
 
         switch (this.phase) {
             case Phase.FETCH: {
+                // Before fetching the NEXT instruction, check for interrupts!
+                // Real CPUs check the IRQ lines at the start of the instruction cycle.
+                if (this.pendingInterrupt && this.flags.I) {
+                    this.pendingInterrupt = false;
+                    
+                    // 1. Disable interrupts so ISR isn't interrupted
+                    this.flags.I = false;
+                    
+                    // 2. Push PC
+                    const currentPc = this.registers[Register.PC];
+                    let sp = this.registers[Register.SP];
+                    this.writeMemory(sp, currentPc);
+                    sp = (sp - 1) & 0xFF;
+                    
+                    // 3. Push Flags
+                    const flagByte = (this.flags.Z ? 1 : 0) | (this.flags.N ? 2 : 0) | (this.flags.C ? 4 : 0);
+                    this.writeMemory(sp, flagByte);
+                    sp = (sp - 1) & 0xFF;
+                    
+                    this.registers[Register.SP] = sp;
+                    
+                    // 4. Jump to ISR (Hardcoded to 0x10 for TISC)
+                    this.registers[Register.PC] = 0x10;
+                    
+                    return {
+                        status: 'interrupt',
+                        phase: Phase.FETCH,
+                        message: `Interrupt triggered! Pushed PC(${currentPc}) and Flags(${flagByte}). Jumped to ISR at 0x10.`,
+                        pc: 0x10,
+                        instruction: { opcode: 'INT_ACK', operands: [] },
+                    };
+                }
+
                 const pc = this.registers[Register.PC];
                 this.cycleCount++;
                 const instruction = this.fetch();
